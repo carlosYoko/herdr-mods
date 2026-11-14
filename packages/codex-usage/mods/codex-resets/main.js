@@ -1,6 +1,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { exec, appHome, theme, props, closeOverlay, shared, setShared } from "herdr";
+import { translator, errorText, creditTitle, creditDescription } from "./i18n.js";
 
 const PENDING = "codex.reset.pending";
 const LOCK = "codex.reset.busyUntil";
@@ -19,7 +20,7 @@ export default class CodexResets extends View {
   }
 
   date(seconds) {
-    if (!Number.isFinite(seconds)) return "Sin caducidad";
+    if (!Number.isFinite(seconds)) return translator(shared("codex.ui.language"))("noExpiry");
     const d = new Date(seconds * 1000), pad = n => String(n).padStart(2, "0");
     return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
@@ -31,18 +32,19 @@ export default class CodexResets extends View {
       try {
         const r = await exec("node", [appHome() + "/mods/codex-quota/read-quota.cjs", "--details"], { timeout: 25000 });
         const data = JSON.parse(r.stdout.trim());
-        if (data.error) throw new Error(data.error);
+        if (data.language) setShared("codex.ui.language", data.language);
+        if (data.error) throw Object.assign(new Error(data.error), data);
         this.data = data;
         if (!shared(PENDING)) this.error = null;
         setShared("codex.quota.latest", data);
-      } catch (e) { this.error = String(e.message || e); }
+      } catch (e) { this.error = e; }
       finally { this.loading = false; cx.notify(); }
     });
   }
 
   choose(credit, cx) {
     if (this.busy || shared(PENDING)) return;
-    this.selection = { credit: credit.id, title: credit.title || "Reinicio de Codex", key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}` };
+    this.selection = { credit: credit.id, title: credit.title || "", key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}` };
     this.message = null;
     cx.notify();
   }
@@ -59,19 +61,16 @@ export default class CodexResets extends View {
       try {
         const r = await exec("node", [appHome() + "/mods/codex-quota/read-quota.cjs", "--consume", "--confirmed", "--credit", attempt.credit, "--idempotency-key", attempt.key], { timeout: 25000 });
         const result = JSON.parse(r.stdout.trim());
-        if (result.error) throw new Error(result.error);
-        const messages = {
-          reset: "Reinicio aplicado. Codex ha confirmado el canje.",
-          nothingToReset: "Codex indica que no hay límites que restablecer.",
-          noCredit: "Codex indica que este reinicio no está disponible.",
-          alreadyRedeemed: "Codex indica que este reinicio ya fue canjeado."
-        };
-        if (!messages[result.outcome]) throw new Error("Resultado desconocido; comprueba el estado antes de otro canje.");
-        this.message = messages[result.outcome];
+        if (result.language) setShared("codex.ui.language", result.language);
+        if (result.error) throw Object.assign(new Error(result.error), result);
+        if (!["reset", "nothingToReset", "noCredit", "alreadyRedeemed"].includes(result.outcome)) {
+          throw Object.assign(new Error("Unknown redemption outcome"), { code: "unknown_outcome" });
+        }
+        this.message = result.outcome;
         setShared(PENDING, null);
         this.selection = null;
       } catch (e) {
-        this.error = `${String(e.message || e)} El resultado puede ser incierto. Reintentar reutiliza la misma clave para evitar un doble canje.`;
+        this.error = e;
       } finally {
         this.busy = false;
         setShared(LOCK, 0);
@@ -90,6 +89,7 @@ export default class CodexResets extends View {
 
   render() {
     const t = theme(), pending = shared(PENDING), selection = pending || this.selection;
+    const language = shared("codex.ui.language") || "en", tr = translator(language);
     const locked = this.busy || Number(shared(LOCK) || 0) > Date.now();
     const credits = [...(this.data?.reset_credits || [])].sort((a, b) => (a.expires_at ?? Infinity) - (b.expires_at ?? Infinity));
     const count = this.data?.resets_available;
@@ -97,33 +97,33 @@ export default class CodexResets extends View {
       const available = credit.status === "available" && credit.type === "codexRateLimits" && (!Number.isFinite(credit.expires_at) || credit.expires_at * 1000 > Date.now());
       return v_flex().p(12).gap(5).rounded(7).bg(t.raised)
         .child(h_flex().items_center().gap(8)
-          .child(div().flex_1().font_semibold().child(credit.title || "Reinicio de Codex"))
-          .child(this.button(`select-${credit.id}`, "Usar…", false, available && !locked && !this.loading && !pending, cx => this.choose(credit, cx))))
-        .when(Boolean(credit.description), el => el.child(div().text_size(11).text_color(t.muted).child(credit.description)))
-        .child(div().text_size(11).text_color(t.dim).child(`Caduca: ${this.date(credit.expires_at)} · ${credit.status === "available" ? "Disponible" : credit.status}`));
+          .child(div().flex_1().font_semibold().child(creditTitle(credit.title, language)))
+          .child(this.button(`select-${credit.id}`, tr("use"), false, available && !locked && !this.loading && !pending, cx => this.choose(credit, cx))))
+        .when(Boolean(credit.description), el => el.child(div().text_size(11).text_color(t.muted).child(creditDescription(credit.description, language))))
+        .child(div().text_size(11).text_color(t.dim).child(tr("expires", { date: this.date(credit.expires_at), status: tr(["available", "redeeming", "redeemed"].includes(credit.status) ? credit.status : "unknown") })));
     };
     return v_flex().size_full().min_h(0).p(18).gap(12).bg(t.popover).text_color(t.foreground).text_size(13)
       .child(h_flex().items_center().justify_between()
-        .child(div().text_size(16).font_semibold().child("Reinicios de Codex"))
-        .child(this.button("close", "Cerrar", false, !locked, () => closeOverlay(props().overlay))))
-      .child(div().text_color(t.muted).child(`Disponibles: ${count === null || count === undefined ? "…" : count}. Solo se gasta un reinicio al confirmar el canje.`))
-      .when(Boolean(this.message), el => el.child(div().text_color(t.accent).child(this.message)))
-      .when(Boolean(this.error), el => el.child(div().text_size(12).text_color(t.blocked).child(this.error)))
+        .child(div().text_size(16).font_semibold().child(tr("resetsTitle")))
+        .child(this.button("close", tr("close"), false, !locked, () => closeOverlay(props().overlay))))
+      .child(div().text_color(t.muted).child(tr("availableCount", { count: count ?? "…" })))
+      .when(Boolean(this.message), el => el.child(div().text_color(t.accent).child(tr(this.message))))
+      .when(Boolean(this.error), el => el.child(div().text_size(12).text_color(t.blocked).child(errorText(this.error, language) + (pending ? " " + tr("uncertain") : ""))))
       .child(v_flex().id("reset-content").flex_1().min_h(0).gap(8).overflow_y_scrollbar()
         .when(Boolean(selection), el => el
-          .child(div().text_size(15).font_semibold().child(pending ? "Comprobar / reintentar el canje pendiente" : "¿Usar este reinicio?"))
-          .child(div().child(selection?.title || ""))
-          .child(div().text_color(t.muted).child("Esta acción canjea un crédito real de tu cuenta. El alcance del reinicio es el indicado en su título. No se puede deshacer desde este panel."))
-          .when(Boolean(pending), node => node.child(div().text_color(t.working).child("Hay un intento pendiente. No se iniciará otro distinto; el reintento usa la misma clave de idempotencia.")))
+          .child(div().text_size(15).font_semibold().child(pending ? tr("pendingTitle") : tr("confirmTitle")))
+          .child(div().child(creditTitle(selection?.title, language)))
+          .child(div().text_color(t.muted).child(tr("warning")))
+          .when(Boolean(pending), node => node.child(div().text_color(t.working).child(tr("pendingWarning"))))
           .child(h_flex().gap(8)
-            .when(!pending, node => node.child(this.button("cancel-reset", "Cancelar", false, !locked, cx => { this.selection = null; cx.notify(); })))
-            .child(this.button("confirm-reset", locked ? "Canjeando…" : pending ? "Reintentar mismo canje" : "Confirmar y usar 1 reinicio", true, !locked && !this.loading, cx => this.consume(cx)))))
+            .when(!pending, node => node.child(this.button("cancel-reset", tr("cancel"), false, !locked, cx => { this.selection = null; cx.notify(); })))
+            .child(this.button("confirm-reset", locked ? tr("consuming") : pending ? tr("retry") : tr("confirm"), true, !locked && !this.loading, cx => this.consume(cx)))))
         .when(!selection, el => el
-          .when(this.loading && !this.data, node => node.child("Consultando tu cuenta…"))
+          .when(this.loading && !this.data, node => node.child(tr("reading")))
           .children(credits.map(card))
-          .when(!this.loading && credits.length === 0, node => node.child("Codex no ha devuelto reinicios seleccionables."))))
+          .when(!this.loading && credits.length === 0, node => node.child(tr("empty")))))
       .child(h_flex().items_center().justify_between()
-        .child(div().text_size(10).text_color(t.dim).child("Cuenta ChatGPT conectada en Codex · horas locales"))
-        .child(this.button("refresh-resets", this.loading ? "Consultando…" : "Actualizar", false, !locked && !this.loading, cx => this.load(cx))));
+        .child(div().text_size(10).text_color(t.dim).child(tr("accountFooter")))
+        .child(this.button("refresh-resets", this.loading ? tr("checking") : tr("refresh"), false, !locked && !this.loading, cx => this.load(cx))));
   }
 }

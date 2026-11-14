@@ -25,6 +25,7 @@ async function simulate(args, reply) {
     try {
       vm.runInNewContext(source, {
         require(name) {
+          if (name === './locale.cjs') return { detectLanguage: () => 'en' };
           if (name === 'child_process') return { spawn() { spawned = true; return child; }, spawnSync() { throw new Error('unexpected lookup'); } };
           return require(name);
         },
@@ -42,6 +43,7 @@ async function simulate(args, reply) {
     rateLimits: { primary: { usedPercent: 24, windowDurationMins: 300, resetsAt: 1800000000 }, secondary: null, planType: 'plus' },
     rateLimitResetCredits: { availableCount: 1, credits: [{ id: 'test-credit', resetType: 'codexRateLimits', status: 'available', expiresAt: null, title: 'Full reset', description: null }] }
   } });
+  assert.equal(read.result.language, 'en');
   assert.equal(read.result.reset_credits[0].id, 'test-credit');
   assert.equal(read.requests[2].params.excludeResetCreditDetails, false);
   assert.equal(read.killed, true);
@@ -57,6 +59,7 @@ async function simulate(args, reply) {
     assert.equal(consumed.killed, true);
   }
   const rejected = await simulate([], { error: { code: -32000, message: 'private diagnostics' } });
+  assert.equal(rejected.result.error_code, 'rpc_error');
   assert.ok(rejected.result.error.includes('-32000'));
   assert.ok(!JSON.stringify(rejected.result).includes('private diagnostics'));
   const unknown = await simulate(['--consume', '--confirmed', '--credit', 'test-credit', '--idempotency-key', key], { result: { outcome: 'unexpected' } });

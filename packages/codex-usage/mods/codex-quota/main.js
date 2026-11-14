@@ -1,6 +1,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { exec, appHome, theme, openOverlay, shared, setShared } from "herdr";
+import { translator, errorText } from "./i18n.js";
 
 export default class CodexQuota extends View {
   init(_props, cx) {
@@ -18,23 +19,25 @@ export default class CodexQuota extends View {
       try {
         const r = await exec("node", [appHome() + "/mods/codex-quota/read-quota.cjs"], { timeout: 25000 });
         const data = JSON.parse(r.stdout.trim());
-        if (data.error) throw new Error(data.error);
+        if (data.language) setShared("codex.ui.language", data.language);
+        if (data.error) throw Object.assign(new Error(data.error), data);
         this.quotaData = data;
         setShared("codex.quota.latest", data);
         this.quotaError = null;
-      } catch (e) { this.quotaError = String(e.message || e); }
+      } catch (e) { this.quotaError = e; }
       finally { this.quotaLoading = false; cx.notify(); }
     });
   }
 
   quotaDate(seconds) {
-    if (!Number.isFinite(seconds)) return "sin fecha";
+    if (!Number.isFinite(seconds)) return translator(shared("codex.ui.language"))("noDate");
     const d = new Date(seconds * 1000), pad = n => String(n).padStart(2, "0");
     return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
   quotaBar() {
     const t = theme(), latest = shared("codex.quota.latest");
+    const language = shared("codex.ui.language") || "en", tr = translator(language);
     const data = latest && (!this.quotaData || Date.parse(latest.timestamp) > Date.parse(this.quotaData.timestamp)) ? latest : this.quotaData;
     const windows = [data?.rate_limits?.primary, data?.rate_limits?.secondary];
     const age = data ? Math.max(0, Math.floor((Date.now() - Date.parse(data.timestamp)) / 60000)) : null;
@@ -48,21 +51,21 @@ export default class CodexQuota extends View {
     };
     const reset = data?.resets_available;
     const tooltip = [
-      "Codex · porcentaje de cuota RESTANTE · clic para actualizar",
-      this.quotaError ? `Error: ${this.quotaError}` : age === null ? "Consultando tu cuenta…" : `Consulta de cuenta: hace ${age} min`,
-      ...windows.filter(Boolean).map(q => `${q.window_minutes === 300 ? "5 horas" : q.window_minutes === 10080 ? "Semanal" : q.window_minutes + " min"}: se restablece ${this.quotaDate(q.resets_at)}`),
-      `Reinicios disponibles: ${reset === null || reset === undefined ? "no informado" : reset}. Pulsa ↻ para verlos y canjear uno con confirmación.`,
-      "Consulta cada 2 minutos mediante Codex con tu sesión de ChatGPT."
+      tr("quotaHint"),
+      this.quotaError ? tr("error", { error: errorText(this.quotaError, language) }) : age === null ? tr("reading") : tr("age", { minutes: age }),
+      ...windows.filter(Boolean).map(q => tr("resetAt", { window: q.window_minutes === 300 ? tr("fiveHours") : q.window_minutes === 10080 ? tr("weekly") : tr("minutes", { minutes: q.window_minutes }), date: this.quotaDate(q.resets_at) })),
+      tr("resetHint", { count: reset ?? tr("unavailable") }),
+      tr("pollHint")
     ].join("\n");
     return h_flex().id("codex-quota-inline").flex_none().h(26).px(8).gap(8).items_center().rounded(5)
       .text_size(11).hover(s => s.bg(t.hover)).tooltip(tooltip)
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => { cx.stop_propagation(); this.refreshQuota(cx); cx.notify(); })
       .child(div().text_color(t.dim).child(this.quotaLoading ? "Codex…" : stale ? "Codex !" : "Codex"))
-      .child(label("5h", 300)).child(label("7d", 10080))
+      .child(label("5h", 300)).child(label(tr("shortWeek"), 10080))
       .child(div().id("open-codex-resets").px(4).rounded(4).text_color(t.dim)
         .hover(s => s.bg(t.raised).text_color(t.foreground))
-        .tooltip("Ver reinicios disponibles y canjear uno con confirmación")
+        .tooltip(tr("openResets"))
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click((_e, cx) => {
           cx.stop_propagation();

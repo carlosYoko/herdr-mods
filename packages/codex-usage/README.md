@@ -4,6 +4,23 @@ Indicador compacto junto a las pestañas: cuota **restante** de 5 horas y 7 día
 más créditos de reinicio. Tooltip con fechas locales. Clic en porcentajes para
 actualizar; clic en ↻ para abrir el panel de reinicios.
 
+## Idioma automático: español / English
+
+El indicador, tooltips, panel, botones, confirmaciones y errores propios se traducen automáticamente: **español** si el idioma del sistema es `es` (incluidas variantes como es-ES y es-MX), e **inglés** para cualquier otro idioma. No utiliza el país para decidir el idioma ni requiere una opción manual.
+
+- Windows: consulta `Get-UICulture` mediante PowerShell.
+- macOS: consulta el primer idioma de `AppleLanguages` con `defaults`.
+- Linux: respeta `LC_ALL`, `LC_MESSAGES`, `LANG` y la preferencia `LANGUAGE`; C/POSIX mantiene inglés.
+- Si falla la consulta nativa, usa el entorno o la configuración regional de Node; en último caso, inglés.
+
+La detección se hace en cada consulta de Codex. Si cambias el idioma del sistema, puede ser necesario reiniciar Herdr para que herede el nuevo entorno; después pulsa actualizar. Antes de la primera detección, la interfaz usa inglés.
+
+Los títulos y descripciones conocidos de créditos también se traducen. Si OpenAI devuelve un texto nuevo o desconocido, se conserva el original para no inventar el alcance del reinicio. Los nombres Codex/ChatGPT, IDs, comandos y detalles técnicos no se traducen.
+
+## Plataformas
+
+Diseñado para **Linux, macOS y Windows**, con descubrimiento del binario por plataforma y arquitectura. La integración visual está validada en Windows con Herdr 0.1.15; todavía falta validarla en Herdr real en macOS y Linux. La CI y las pruebas de idioma/protocolo usan simulaciones y no prueban un canje real.
+
 ## Antes de instalar: qué ejecuta y qué lee
 
 Ejecuta `node` y el binario `codex app-server`. Codex consulta OpenAI usando
@@ -17,15 +34,15 @@ ese mismo home, escribe copias personales y guarda backups locales.
 
 Si Codex no está en PATH ni en la ubicación soportada, arranca Herdr con
 `CODEX_BINARY` apuntando al ejecutable real. En Windows no uses un wrapper .cmd.
-En macOS el proceso de Herdr debe poder encontrar Node y Codex en su entorno.
-Si no hay sesión, inicia sesión con Codex en ese Mac/PC; el panel no ofrece login.
+En Linux y macOS el proceso de Herdr debe poder encontrar Node y Codex en su entorno.
+Si no hay sesión, inicia sesión con Codex en ese equipo; el panel no ofrece login.
 
 ## Reinicios
 
 La consulta automática cada 2 minutos solo lee cuotas; abrir el panel pide
 los detalles de cada crédito. Se muestran título, descripción, estado y
-caducidad, ordenados por vencimiento. Los textos del servidor se mantienen
-tal como se reciben. Un estado desconocido o crédito caducado no es canjeable.
+caducidad, ordenados por vencimiento. Los textos conocidos se traducen;
+los desconocidos conservan el original. Un estado desconocido o crédito caducado no es canjeable.
 
 1. Pulsa ↻ junto a los porcentajes.
 2. Elige `Usar…`.
@@ -49,7 +66,7 @@ servidor ni sincroniza intentos entre ordenadores.
 - Una cuota cuya fecha de reset ya pasó se oculta hasta una nueva lectura.
 - Sin cron ni procesos de modelo: solo consultas del app-server.
 - El transporte experimental puede requerir adaptar el helper tras una actualización.
-- Windows validado; macOS pendiente de validación real.
+- Windows validado; macOS y Linux pendientes de validación visual real.
 - Abrir Herdr o ejecutar el instalador no canjea créditos.
 
 Lista de paquetes: `npm run mods:list`.

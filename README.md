@@ -1,126 +1,100 @@
 # Herdr Mods
 
-Mods comunitarios para Herdr, compartidos entre macOS y Windows.
-**No es un proyecto oficial de Herdr ni de OpenAI.**
+Colección comunitaria de **mods, layouts y temas para Herdr**, organizada en paquetes independientes para **Linux, macOS y Windows**. No está limitada a Codex: cada paquete puede aportar un panel, una herramienta, una integración o un diseño de ventana.
 
-## Paquetes
+**Proyecto independiente, no oficial de Herdr ni de sus proveedores.**
 
-| Paquete | Función |
-| --- | --- |
-| [codex-usage](packages/codex-usage/) | Cuota restante de 5 horas y semanal, fechas de restablecimiento y canje de reinicios con confirmación. |
+## Plataformas
 
-![Vista ilustrativa](packages/codex-usage/preview.png)
+El repositorio y el instalador general están diseñados para Linux, macOS y Windows. Cada paquete documenta sus requisitos y nivel de validación. La CI ejecuta pruebas automatizadas en los tres sistemas; las pruebas con procesos simulados no sustituyen una validación de la interfaz en un dispositivo real.
 
-## Instalación
+| Plataforma | Instalador general | Integración visual del paquete actual |
+| --- | --- | --- |
+| Windows | Compatible | Validada con Herdr 0.1.15 |
+| macOS | Compatible por diseño | Pendiente de validación en Herdr real |
+| Linux | Compatible por diseño | Pendiente de validación en Herdr real |
 
-Requisitos: Herdr abierto y CLI `herdr-app` disponible; Node.js 20+ y Git.
-Codex debe tener sesión de ChatGPT iniciada en **ese dispositivo**.
-Se puede usar la CLI o el binario de la extensión de Codex de VS Code.
-No hay dependencias npm que descargar.
+## Catálogo
+
+| Paquete | Función | Idiomas |
+| --- | --- | --- |
+| [codex-usage](packages/codex-usage/) | Cuota restante de 5 horas y semanal; panel de reinicios con confirmación de canje. | Español automático si el sistema está en español; inglés para el resto. |
+
+Este es el primer paquete disponible, no el único tipo de mod que admite el repositorio. Los próximos paquetes aparecerán en el catálogo sin instalarse automáticamente.
+
+## Instalación selectiva
+
+Requisitos comunes: Git, Node.js 20+, Herdr abierto y `herdr-app` disponible en PATH. Consulta también los requisitos del paquete elegido. No hay dependencias npm que descargar.
 
 ```sh
 git clone https://github.com/carlosYoko/herdr-mods.git
 cd herdr-mods
 npm test
 npm run mods:list
+```
+
+Instala **solo el paquete que elijas**, por ejemplo:
+
+```sh
 npm run mod:install -- codex-usage
 ```
 
-**Siempre eliges un único paquete por nombre.** `mods:list` solo lista los disponibles:
-no instala ni ejecuta sus instaladores. Ejecutar `mod:install` sin nombre, con un
-nombre desconocido o con `--all` no instala nada. No existe una instalación global
-implícita. Al añadir futuros paquetes, solo se instalará el que indiques.
-
-`codex-usage` agrupa `codex-quota` y `codex-resets` porque el indicador y el panel
-colaboran. Se instala ese conjunto, no todos los mods del repositorio. El alias
-anterior `npm run install:codex` sigue funcionando y elige solo `codex-usage`.
-
-El instalador de `codex-usage` crea el layout personal `codex-usage`, clonado de `main`,
-y clona la barra oficial como `codex-usage-tabs`.
-Solo modifica esas copias y los mods del paquete; no edita archivos oficiales
-ni sincroniza la sesión de Codex. Valida los tres mods antes de terminar.
-El código de la barra se adapta a partir de la versión instalada localmente:
-se conservan sus controles de Windows/macOS.
-
-Si ya hay archivos con los nombres del paquete, la instalación se detiene.
-Revísalos antes de permitir su reemplazo:
+Para actualizar solo ese paquete:
 
 ```sh
+git pull --ff-only
+npm test
 npm run mod:install -- codex-usage --update
 ```
 
-Los archivos reemplazados se guardan en
-`HERDR_APP_HOME/data/community-backups/<fecha>/`.
-No hay rollback automático completo si una instalación falla a mitad;
-los backups permiten restaurar los archivos anteriores manualmente.
+La forma general es `npm run mod:install -- <paquete> [opciones]`. `mods:list` solo enumera: no ejecuta instaladores. Sin nombre, con un nombre desconocido, varios paquetes o `--all`, no instala nada. No hay una instalación global implícita.
 
-Opciones: `--base-layout main`, `--home RUTA`, `--no-switch`.
-También respeta `HERDR_APP_HOME`. El layout base debe usar una única barra
-oficial `tabs`. Una estructura incompatible se rechaza antes de modificarla.
-Una instalación administrada existente conserva su árbol de layout al actualizar.
+Los mods que colaboran pueden agruparse en un paquete y se instalan juntos. Cada instalador lista explícitamente sus archivos, protege los originales de Herdr y valida los mods instalados. Opciones y diseños específicos se explican en el README de cada paquete.
 
-Para volver al diseño original:
-`herdr-app do layout.switch --name main`.
-No borres los backups o clones hasta comprobar que todo funciona.
+`--update` permite reemplazar los archivos del paquete. Los instaladores actuales guardan backups en `HERDR_APP_HOME/data/community-backups/<fecha>/`. No hay rollback automático completo de una instalación fallida: conserva los backups hasta comprobar el resultado.
 
-## Flujo de trabajo Mac ↔ Windows
+## Trabajar entre Linux, Mac y Windows
 
 Este repositorio es la **fuente de verdad**, no la carpeta de configuración de Herdr.
 
-1. Antes de empezar en cada equipo: `git pull --ff-only`.
-2. Edita el código de `packages/<paquete>/mods/<mod>/`.
-3. Ejecuta `npm test` y `npm run mod:install -- codex-usage --update` (selecciona el paquete que has editado).
-4. Prueba el mod en Herdr, incluidos menús y estados asíncronos.
-5. Revisa `git diff`, haz commit y `git push`.
-6. En el otro equipo: pull, tests e instalación de nuevo.
+1. Antes de empezar en cada equipo: `git status` y `git pull --ff-only`.
+2. Edita `packages/<paquete>/mods/<mod>/`, o el layout/tema fuente correspondiente.
+3. Ejecuta `npm test`.
+4. Instala el paquete editado: `npm run mod:install -- <paquete> --update`.
+5. Prueba en Herdr, incluidos menús, confirmaciones y estados asíncronos.
+6. Revisa `git diff`, haz commit y `git push`.
+7. En otro equipo: pull, pruebas e instalación selectiva otra vez.
 
-No trabajes sobre cambios sin publicar simultáneamente en ambos equipos.
-Si Git rechaza un pull o push, resuelve el conflicto: no uses force-push.
-El código instalado es una copia; editarlo directamente **no** actualiza el repo.
-Si haces una prueba rápida en la configuración, traslada solo esos cambios
-de código a la carpeta fuente antes del commit.
+No desarrolles cambios sin publicar simultáneamente en varios equipos. Si Git rechaza un pull o push, resuelve el conflicto; no uses force-push. Los archivos instalados son copias: editar la configuración de Herdr no actualiza el repositorio. Traslada cualquier prueba rápida al código fuente antes del commit.
 
-Nunca versiones toda `~/.config/herdr-app`, `~/.codex`, credenciales,
-conversaciones, `shared.json`, preferencias personales o archivos regenerados.
-La cuota usa la cuenta conectada en cada ordenador. No requiere trasladar
-tokens ni iniciar sesión en GitHub dentro del mod.
+Nunca versiones toda `~/.config/herdr-app`, credenciales, conversaciones, sesiones, `shared.json`, preferencias personales o archivos regenerados. Las cuentas y autenticaciones permanecen en cada dispositivo y no viajan por Git.
 
-## Organización
+## Organización y nuevos paquetes
 
-```
+```text
 packages/
-  codex-usage/
+  <paquete>/
     herdr-package.json
     install.cjs
-    RECIPE.md
     README.md
+    RECIPE.md
     preview.png
-    preview.svg
     mods/
-      codex-quota/
-      codex-resets/
+      <mod>/
+    layouts/              # opcional
+    themes/               # opcional
 scripts/
-  install.cjs
-  test-installer.cjs
+  install.cjs             # selección y catálogo general
+  test-*.cjs
 LICENSE
 ```
 
-Un paquete puede agrupar varios mods que colaboran. Para uno nuevo, añade otra
-carpeta en `packages/` con `herdr-package.json`, un `install.cjs` que exporte
-`install(args)`, su receta y pruebas. El catálogo lo descubrirá sin cambiar
-el dispatcher general ni añadir un script npm por paquete. El manifiesto debe
-indicar `id` (igual al nombre de carpeta), `description`, `mods` e `installer`.
-Su instalador debe validar opciones antes de escribir y mantener una lista
-explícita de archivos propios. No copies toda la configuración al repo.
+Para añadir un paquete, crea su carpeta, receta, pruebas, manifiesto e instalador. El dispatcher descubre `herdr-package.json` sin añadir un script npm específico. El manifiesto indica `id` (igual al nombre de carpeta), `description`, `mods` e `installer`. El instalador exporta `install(args)` y valida opciones antes de escribir.
 
-## Seguridad, compatibilidad y licencia
+Incluye solo código propio y archivos expresamente necesarios. Para personalizar código oficial de Herdr, clónalo localmente durante la instalación; no lo copies ni lo relicencies en el repositorio. Los idiomas y plataformas concretas se documentan por paquete.
 
-El paquete ejecuta Node y Codex, que hace peticiones a OpenAI usando su sesión.
-El canje consume créditos reales, requiere selección y confirmación, y puede
-no ser reversible. Lee [la documentación del paquete](packages/codex-usage/).
+## Seguridad y licencia
 
-Probado en Windows con Herdr 0.1.15. El instalador y descubrimiento del binario
-contemplan macOS, pero **todavía no están verificados en un Mac real**.
-El protocolo de Codex app-server es experimental y puede cambiar.
+Revisa el README de cada paquete antes de instalar: los mods son código de confianza y pueden ejecutar programas, acceder a archivos o consultar servicios de red. Las acciones que gasten créditos o modifiquen una cuenta deben requerir confirmación explícita y nunca probarse contra recursos reales de forma automática.
 
-Código propio bajo [MIT](LICENSE). Véase [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Código propio bajo [MIT](LICENSE). Consulta [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) para requisitos y componentes de terceros.

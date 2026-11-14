@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const home = require('os').homedir();
+const { detectLanguage } = require('./locale.cjs');
+const language = detectLanguage();
 const args = process.argv.slice(2);
 const consuming = args.includes('--consume');
 const details = args.includes('--details');
@@ -10,7 +12,7 @@ const value = flag => args[args.indexOf(flag) + 1];
 const key = args.includes('--idempotency-key') ? value('--idempotency-key') : null;
 const creditId = args.includes('--credit') ? value('--credit') : null;
 if (consuming && (!args.includes('--confirmed') || !key || !/^[a-zA-Z0-9-]{16,120}$/.test(key) || (!creditId && !args.includes('--next')))) {
-  console.log(JSON.stringify({ error: 'El canje requiere confirmación, crédito y clave de idempotencia.' }));
+  console.log(JSON.stringify({ language, error_code: 'confirmation_required', error: 'Redemption requires confirmation, a credit and an idempotency key.' }));
   process.exit(1);
 }
 function findCodex() {
@@ -31,23 +33,23 @@ function findCodex() {
       if (fs.existsSync(file)) return file;
     }
   }
-  throw new Error('No se encuentra Codex. Instala la CLI o configura CODEX_BINARY.');
+  throw Object.assign(new Error('Codex was not found. Install the CLI or set CODEX_BINARY.'), { code: 'binary_missing' });
 }
 let child, timer, finished = false;
 function finish(result) {
   if (finished) return;
   finished = true;
   clearTimeout(timer);
-  console.log(JSON.stringify(result));
+  console.log(JSON.stringify({ language, ...result }));
   if (child) { child.stdin.end(); child.kill(); }
 }
 try {
   child = spawn(findCodex(), ['app-server', '--listen', 'stdio://'], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
   const send = message => child.stdin.write(JSON.stringify(message) + '\n');
-  timer = setTimeout(() => finish({ error: 'Codex no respondió en 20 segundos.' }), 20000);
-  child.on('error', () => finish({ error: 'No se pudo iniciar Codex app-server.' }));
-  child.stdin.on('error', () => finish({ error: 'Conexión con Codex interrumpida.' }));
-  child.on('exit', () => finish({ error: 'Codex se cerró antes de devolver la cuota.' }));
+  timer = setTimeout(() => finish({ error_code: 'timeout', error: 'Codex did not respond within 20 seconds.' }), 20000);
+  child.on('error', () => finish({ error_code: 'start_failed', error: 'Could not start Codex app-server.' }));
+  child.stdin.on('error', () => finish({ error_code: 'connection_lost', error: 'Connection to Codex interrupted.' }));
+  child.on('exit', () => finish({ error_code: 'early_exit', error: 'Codex exited before returning the quota.' }));
   let buffer = '';
   child.stdout.on('data', chunk => {
     buffer += chunk.toString('utf8');
@@ -60,7 +62,7 @@ try {
       if (message.id !== 1 && message.id !== 2) continue;
       if (message.error) {
         // Never forward arbitrary server diagnostics that might contain account information.
-        finish({ error: `Codex rechazó la consulta (${message.error.code}). Comprueba la sesión en VS Code.` });
+        finish({ error_code: 'rpc_error', error_rpc_code: message.error.code, error: `Codex rejected the request (${message.error.code}). Check your Codex login.` });
         return;
       }
       if (message.id === 1) {
@@ -72,11 +74,11 @@ try {
         const result = message.result;
         if (consuming) {
           const allowed = ['reset', 'nothingToReset', 'noCredit', 'alreadyRedeemed'];
-          finish(allowed.includes(result?.outcome) ? { outcome: result.outcome } : { error: 'Respuesta de canje desconocida. No inicies otro canje; reintenta con la misma clave.' });
+          finish(allowed.includes(result?.outcome) ? { outcome: result.outcome } : { error_code: 'unknown_outcome', error: 'Unknown redemption response. Retry with the same key, not a different attempt.' });
           return;
         }
         const limits = result?.rateLimitsByLimitId?.codex || result?.rateLimits;
-        if (!limits) { finish({ error: 'La cuenta no ha devuelto cuotas. Comprueba el login de Codex.' }); return; }
+        if (!limits) { finish({ error_code: 'no_limits', error: 'The account returned no quotas. Check your Codex login.' }); return; }
         const window = w => w ? { used_percent: w.usedPercent, window_minutes: w.windowDurationMins, resets_at: w.resetsAt } : null;
         finish({ timestamp: new Date().toISOString(), source: 'codex-app-server',
           rate_limits: { primary: window(limits.primary), secondary: window(limits.secondary), plan_type: limits.planType },
@@ -90,5 +92,5 @@ try {
   });
   send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'herdr_quota', title: 'Herdr quota', version: '1.0.0' }, capabilities: null } });
 } catch (e) {
-  finish({ error: e.message });
+  finish({ error_code: e.code === 'binary_missing' ? e.code : 'request_failed', error: e.code === 'binary_missing' ? e.message : 'The Codex request failed.' });
 }

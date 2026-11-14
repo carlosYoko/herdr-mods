@@ -6,7 +6,7 @@ const os = require('os');
 const { spawnSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '../..');
 const FILES = {
-  'codex-quota': ['mod.json', 'main.js', 'read-quota.cjs'],
+  'codex-quota': ['mod.json', 'main.js', 'read-quota.cjs', 'locale.cjs'],
   'codex-resets': ['mod.json', 'main.js']
 };
 function patchTabs(source) {
@@ -55,6 +55,10 @@ function main(argv) {
   const files = [];
   for (const [name, names] of Object.entries(FILES)) for (const file of names) {
     files.push({ relative: path.join('mods', name, file), contents: fs.readFileSync(path.join(ROOT, 'packages', 'codex-usage', 'mods', name, file), 'utf8') });
+  }
+  const translations = fs.readFileSync(path.join(__dirname, 'shared', 'i18n.js'), 'utf8');
+  for (const name of [...Object.keys(FILES), tabsName]) {
+    files.push({ relative: path.join('mods', name, 'i18n.js'), contents: translations });
   }
   const sourceTabsPath = managed ? path.join(tabsDir, 'main.js') : path.join(home, 'mods', 'tabs', 'main.js');
   const patchedTabs = patchTabs(fs.readFileSync(sourceTabsPath, 'utf8').replace(/\r\n/g, '\n'));

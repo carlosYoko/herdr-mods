@@ -14,6 +14,7 @@ Un indicador pequeño integrado justo después de las pestañas de Herdr muestra
 
 ## How it behaves
 
+- Todo texto propio usa español si el idioma del sistema empieza por es; los demás usan inglés. Incluye tooltips, tarjetas, estados, confirmaciones y errores. Los títulos/descripciones conocidos del servidor se traducen; los desconocidos conservan el original. Antes de la primera lectura se usa inglés.
 - Los estados working/blocked/done/idle de agentes no se usan para cuotas. La barra clonada conserva sus indicadores y navegación normales de Herdr.
 - Clic en los porcentajes consulta la cuenta. Consulta automática cada 120 segundos. No usa animaciones ni timers de spinner.
 - Sin campo de cuota: guion. Fecha de reset pasada: no presenta ese porcentaje como actual. Error: mantiene la última lectura atenuada y marca Codex !; el tooltip explica el error.
@@ -25,8 +26,8 @@ Un indicador pequeño integrado justo después de las pestañas de Herdr muestra
 
 ## Built from
 
-- Dos mods propios en mods/: codex-quota (indicador y helper Node) y codex-resets (diálogo).
-- Un dispatcher descubre manifiestos herdr-package.json y exige seleccionar un único paquete. mods:list solo enumera; no hay instalación de todos ni selección implícita. El instalador propio de este paquete vive en packages/codex-usage/install.cjs y crea localmente codex-usage-tabs con mod.clone de tabs, añade una copia del helper UI y adapta tres anclajes del código. No distribuye código de la barra oficial ni sus assets. Conserva botones, iconos, navegación y lógica de macOS/Windows del clon local.
+- Dos mods propios en mods/: codex-quota (indicador y helper Node) y codex-resets (diálogo). shared/i18n.js contiene las traducciones, que el instalador copia junto a los consumidores. locale.cjs detecta idioma con Get-UICulture en Windows, defaults read -g AppleLanguages en macOS y LC_ALL/LC_MESSAGES/LANG/LANGUAGE en Linux, con fallback a Intl y finalmente inglés. La respuesta del helper incluye language y errores estructurados; shared codex.ui.language propaga el idioma a la interfaz.
+- Un dispatcher descubre manifiestos herdr-package.json y exige seleccionar un único paquete. mods:list solo enumera; no hay instalación de todos ni selección implícita. El instalador propio de este paquete vive en packages/codex-usage/install.cjs y crea localmente codex-usage-tabs con mod.clone de tabs, añade una copia del helper UI y adapta tres anclajes del código. No distribuye código de la barra oficial ni sus assets. Conserva botones, iconos, navegación y lógica de Linux/macOS/Windows del clon local.
 - Layout codex-usage: layout.clone desde main, sustituye el único content.mod tabs por codex-usage-tabs y añade preview layouts/codex-usage.svg. El resto del árbol queda igual.
 - APIs de Herdr: exec, appHome, theme, openOverlay, props, closeOverlay, shared, setShared; View, div, h_flex y v_flex. init usa cx.spawn, cx.timer.every y cx.timer.after; render no hace consultas de red.
 - Node lanza Codex app-server, manda initialize/initialized y account/rateLimits/read. En el panel pide detalles; en el fondo excludeResetCreditDetails=true. Canje: account/rateLimitResetCredit/consume con creditId e idempotencyKey. Timeout 20s y cierre del proceso.
@@ -37,7 +38,7 @@ Un indicador pequeño integrado justo después de las pestañas de Herdr muestra
 
 - Requiere Node 20+, Git, Herdr abierto, CLI herdr-app y sesión ChatGPT en Codex del equipo destino. La cuenta no viaja por Git.
 - App-server es experimental. Los anclajes de tabs están verificados con Herdr 0.1.15; una barra con estructura diferente debe rechazarse, no parchearse a ciegas.
-- Windows probado; macOS contemplado pero aún sin validación real. Mantener los controles originales de ventanas, traffic lights y padding del clon.
+- Windows probado; Linux y macOS contemplados pero aún sin validación visual real. Mantener los controles originales de ventanas, traffic lights y padding del clon.
 - El instalador no sobrescribe por defecto. --update permite reemplazo con backups locales; no restaura automáticamente todos los pasos de una instalación fallida. No tocar .state de layouts.
 - Nunca versionar shared state, credenciales, preferencias o capturas de espacios personales. Solo archivos fuente expresamente listados.
 - El contador es el número de créditos informado por el servidor, no un supuesto número de reinicios semanales que se regenere cada semana.
@@ -54,3 +55,4 @@ Un indicador pequeño integrado justo después de las pestañas de Herdr muestra
 6. Abrir ↻ lista los detalles reales y caducidades sin gastar créditos.
 7. La selección ofrece una segunda confirmación; los cuatro resultados y la clave de idempotencia se verifican con un servidor simulado.
 8. Volver a main deja disponible el layout original. El repo no contiene código oficial clonado, credenciales ni estado del dispositivo.
+9. Las pruebas de idioma simulan las tres plataformas, verifican claves y parámetros de ambas traducciones y describen las ramas del panel en español e inglés sin canjear créditos reales.
