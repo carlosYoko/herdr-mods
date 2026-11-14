@@ -1,0 +1,12 @@
+{
+  "name": "herdr-community-mods",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Community Herdr mods shared between macOS and Windows",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node packages/codex-usage/mods/codex-quota/test-protocol.cjs && node scripts/test-installer.cjs",
+    "install:codex": "node scripts/install.cjs codex-usage"
+  }
+}
