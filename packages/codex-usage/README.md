@@ -52,4 +52,10 @@ servidor ni sincroniza intentos entre ordenadores.
 - Windows validado; macOS pendiente de validación real.
 - Abrir Herdr o ejecutar el instalador no canjea créditos.
 
+Lista de paquetes: `npm run mods:list`.
+Instala solo este paquete: `npm run mod:install -- codex-usage`.
+Actualiza solo este paquete: `npm run mod:install -- codex-usage --update`.
+`codex-quota` y `codex-resets` forman un conjunto y se instalan juntos.
+Otros paquetes presentes o futuros no se instalan con este comando.
+
 Instalación y actualización: [README principal](../../README.md).

@@ -6,7 +6,9 @@
   "license": "MIT",
   "engines": { "node": ">=20" },
   "scripts": {
-    "test": "node packages/codex-usage/mods/codex-quota/test-protocol.cjs && node scripts/test-installer.cjs",
+    "test": "node packages/codex-usage/mods/codex-quota/test-protocol.cjs && node scripts/test-installer.cjs && node scripts/test-selection.cjs",
+    "mods:list": "node scripts/install.cjs --list",
+    "mod:install": "node scripts/install.cjs",
     "install:codex": "node scripts/install.cjs codex-usage"
   }
 }

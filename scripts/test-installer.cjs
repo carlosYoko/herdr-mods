@@ -1,5 +1,5 @@
 const assert = require('assert/strict');
-const { patchTabs, integrateLayout } = require('./install.cjs');
+const { patchTabs, integrateLayout } = require('../packages/codex-usage/install.cjs');
 // Minimal synthetic protocol fixture, not a copy of Herdr source.
 const fixture = 'import { View, div, svg, image } from "gpui-kit";\nexport default class Tabs extends View {\n  init() {\n  }\nrender() { return root.children(shown.map(item))); }\n}';
 const patched = patchTabs(fixture);

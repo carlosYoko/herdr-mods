@@ -26,7 +26,7 @@ Un indicador pequeño integrado justo después de las pestañas de Herdr muestra
 ## Built from
 
 - Dos mods propios en mods/: codex-quota (indicador y helper Node) y codex-resets (diálogo).
-- Un instalador propio crea localmente codex-usage-tabs con mod.clone de tabs, añade una copia del helper UI y adapta tres anclajes del código. No distribuye código de la barra oficial ni sus assets. Conserva botones, iconos, navegación y lógica de macOS/Windows del clon local.
+- Un dispatcher descubre manifiestos herdr-package.json y exige seleccionar un único paquete. mods:list solo enumera; no hay instalación de todos ni selección implícita. El instalador propio de este paquete vive en packages/codex-usage/install.cjs y crea localmente codex-usage-tabs con mod.clone de tabs, añade una copia del helper UI y adapta tres anclajes del código. No distribuye código de la barra oficial ni sus assets. Conserva botones, iconos, navegación y lógica de macOS/Windows del clon local.
 - Layout codex-usage: layout.clone desde main, sustituye el único content.mod tabs por codex-usage-tabs y añade preview layouts/codex-usage.svg. El resto del árbol queda igual.
 - APIs de Herdr: exec, appHome, theme, openOverlay, props, closeOverlay, shared, setShared; View, div, h_flex y v_flex. init usa cx.spawn, cx.timer.every y cx.timer.after; render no hace consultas de red.
 - Node lanza Codex app-server, manda initialize/initialized y account/rateLimits/read. En el panel pide detalles; en el fondo excludeResetCreditDetails=true. Canje: account/rateLimitResetCredit/consume con creditId e idempotencyKey. Timeout 20s y cierre del proceso.
@@ -47,7 +47,7 @@ Un indicador pequeño integrado justo después de las pestañas de Herdr muestra
 ## Done when
 
 1. npm test pasa sin red ni consumo de créditos reales.
-2. El instalador rechaza anclajes incompatibles, nombres ajenos y reemplazos sin --update.
+2. El instalador rechaza anclajes incompatibles, nombres ajenos y reemplazos sin --update. El dispatcher no instala nada al listar, omitir nombre o seleccionar nombres desconocidos/varios/--all; las pruebas simulan dos paquetes y verifican que solo se invoca el seleccionado.
 3. herdr-app check pasa para los dos mods y la barra clonada.
 4. En la app el indicador aparece junto a las pestañas sin añadir altura a la barra; navegación y botones originales funcionan.
 5. La consulta autenticada muestra las ventanas reales disponibles o explica su ausencia/error; nunca muestra como actual un registro histórico.

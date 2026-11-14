@@ -1,0 +1,6 @@
+{
+  "id": "codex-usage",
+  "description": "Cuota de Codex de 5 horas y semanal, con panel de reinicios y confirmación de canje.",
+  "mods": ["codex-quota", "codex-resets"],
+  "installer": "install.cjs"
+}

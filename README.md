@@ -22,10 +22,20 @@ No hay dependencias npm que descargar.
 git clone https://github.com/carlosYoko/herdr-mods.git
 cd herdr-mods
 npm test
-npm run install:codex
+npm run mods:list
+npm run mod:install -- codex-usage
 ```
 
-El instalador crea el layout personal `codex-usage`, clonado de `main`,
+**Siempre eliges un único paquete por nombre.** `mods:list` solo lista los disponibles:
+no instala ni ejecuta sus instaladores. Ejecutar `mod:install` sin nombre, con un
+nombre desconocido o con `--all` no instala nada. No existe una instalación global
+implícita. Al añadir futuros paquetes, solo se instalará el que indiques.
+
+`codex-usage` agrupa `codex-quota` y `codex-resets` porque el indicador y el panel
+colaboran. Se instala ese conjunto, no todos los mods del repositorio. El alias
+anterior `npm run install:codex` sigue funcionando y elige solo `codex-usage`.
+
+El instalador de `codex-usage` crea el layout personal `codex-usage`, clonado de `main`,
 y clona la barra oficial como `codex-usage-tabs`.
 Solo modifica esas copias y los mods del paquete; no edita archivos oficiales
 ni sincroniza la sesión de Codex. Valida los tres mods antes de terminar.
@@ -36,7 +46,7 @@ Si ya hay archivos con los nombres del paquete, la instalación se detiene.
 Revísalos antes de permitir su reemplazo:
 
 ```sh
-npm run install:codex -- --update
+npm run mod:install -- codex-usage --update
 ```
 
 Los archivos reemplazados se guardan en
@@ -59,7 +69,7 @@ Este repositorio es la **fuente de verdad**, no la carpeta de configuración de 
 
 1. Antes de empezar en cada equipo: `git pull --ff-only`.
 2. Edita el código de `packages/<paquete>/mods/<mod>/`.
-3. Ejecuta `npm test` y `npm run install:codex -- --update`.
+3. Ejecuta `npm test` y `npm run mod:install -- codex-usage --update` (selecciona el paquete que has editado).
 4. Prueba el mod en Herdr, incluidos menús y estados asíncronos.
 5. Revisa `git diff`, haz commit y `git push`.
 6. En el otro equipo: pull, tests e instalación de nuevo.
@@ -80,6 +90,8 @@ tokens ni iniciar sesión en GitHub dentro del mod.
 ```
 packages/
   codex-usage/
+    herdr-package.json
+    install.cjs
     RECIPE.md
     README.md
     preview.png
@@ -94,8 +106,12 @@ LICENSE
 ```
 
 Un paquete puede agrupar varios mods que colaboran. Para uno nuevo, añade otra
-carpeta en `packages/`, su receta y pruebas; amplía el instalador con una
-lista explícita de sus archivos. No copies toda la configuración al repo.
+carpeta en `packages/` con `herdr-package.json`, un `install.cjs` que exporte
+`install(args)`, su receta y pruebas. El catálogo lo descubrirá sin cambiar
+el dispatcher general ni añadir un script npm por paquete. El manifiesto debe
+indicar `id` (igual al nombre de carpeta), `description`, `mods` e `installer`.
+Su instalador debe validar opciones antes de escribir y mantener una lista
+explícita de archivos propios. No copies toda la configuración al repo.
 
 ## Seguridad, compatibilidad y licencia
 
