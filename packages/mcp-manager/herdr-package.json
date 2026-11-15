@@ -1,0 +1,8 @@
+{
+  "id": "mcp-manager",
+  "description": "Panel MCP por sesión: Pi y Codex, Claude Code en solo lectura; confirmaciones y backups.",
+  "mods": [
+    "mcp-manager"
+  ],
+  "installer": "install.cjs"
+}

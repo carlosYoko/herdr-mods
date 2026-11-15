@@ -35,5 +35,9 @@ try {
   fs.writeFileSync(manifest, JSON.stringify(broken));
   assert.throws(() => getCatalog(root), /Invalid package manifest/);
   assert.equal(calls.length, 1);
+  // A layout name may also be a package ID; it is an option value, not a second selection.
+  fs.writeFileSync(manifest, JSON.stringify({ ...broken, installer: 'install.cjs' }));
+  execute(['second-mod', '--base-layout', 'first-mod'], opts);
+  assert.deepEqual(calls[1], { id: 'second-mod', args: ['--base-layout', 'first-mod'] });
   console.log('Passed: list without executing code, explicit one-package selection, option forwarding, missing/unknown/multiple/all/traversal guards.');
 } finally { fs.rmSync(root, { recursive: true, force: true }); }

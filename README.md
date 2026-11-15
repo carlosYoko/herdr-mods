@@ -19,16 +19,18 @@ El repositorio y el instalador general están diseñados para Linux, macOS y Win
 | Paquete | Función | Idiomas |
 | --- | --- | --- |
 | [codex-usage](packages/codex-usage/) | Cuota restante de 5 horas y semanal; panel de reinicios con confirmación de canje. | Español automático si el sistema está en español; inglés para el resto. |
+| [mcp-manager](packages/mcp-manager/) | Panel junto a Files/Changes: configuración estándar de Pi y Codex; Claude Code en solo lectura. | Español. |
 
-Este es el primer paquete disponible, no el único tipo de mod que admite el repositorio. Los próximos paquetes aparecerán en el catálogo sin instalarse automáticamente.
+Los paquetes se instalan por separado. Instalar uno no instala los demás.
 
 ## Instalación selectiva
 
-Requisitos comunes: Git, Node.js 20+, Herdr abierto y `herdr-app` disponible en PATH. Consulta también los requisitos del paquete elegido. No hay dependencias npm que descargar.
+Requisitos comunes: Git, Node.js 20+, Herdr abierto y `herdr-app` disponible en PATH. Consulta también los requisitos del paquete elegido. Ejecuta `npm ci` para instalar la dependencia TOML fijada en el lockfile (utilizada por mcp-manager).
 
 ```sh
 git clone https://github.com/carlosYoko/herdr-mods.git
 cd herdr-mods
+npm ci
 npm test
 npm run mods:list
 ```
@@ -43,11 +45,20 @@ Para actualizar solo ese paquete:
 
 ```sh
 git pull --ff-only
+npm ci
 npm test
 npm run mod:install -- codex-usage --update
 ```
 
 La forma general es `npm run mod:install -- <paquete> [opciones]`. `mods:list` solo enumera: no ejecuta instaladores. Sin nombre, con un nombre desconocido, varios paquetes o `--all`, no instala nada. No hay una instalación global implícita.
+
+Para instalar el panel MCP conservando un layout de cuotas ya instalado:
+
+```sh
+npm run mod:install -- mcp-manager --base-layout codex-usage
+```
+
+Crea el layout `mcp-workspace` sin modificar `codex-usage`. Sin `--base-layout`, clona `main`. Consulta el README del paquete para sus límites y los archivos de configuración que puede modificar.
 
 Los mods que colaboran pueden agruparse en un paquete y se instalan juntos. Cada instalador lista explícitamente sus archivos, protege los originales de Herdr y valida los mods instalados. Opciones y diseños específicos se explican en el README de cada paquete.
 

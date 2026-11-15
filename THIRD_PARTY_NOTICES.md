@@ -12,5 +12,10 @@ The official tabs implementation, its assets, fonts and generated type files
 are deliberately NOT distributed or relicensed here. The resulting local
 clone still includes upstream code subject to its original terms.
 
+`mcp-manager` uses smol-toml 1.9.1 (MIT, © smol-toml contributors) to parse
+and serialize Codex TOML. npm installs the pinned dependency; the MCP installer
+deploys that package, including its original LICENSE, with the local helper.
+Source: https://github.com/squirrelchat/smol-toml
+
 The UI preview is a synthetic illustration created for this package; it is
 not a screenshot of a user's workspace or account.

@@ -48,7 +48,12 @@ function execute(argv, { packagesDir = PACKAGES, log = console.log, install = (p
   const pkg = catalog.get(id);
   if (!pkg) throw new Error(`Unknown package: ${id}. Nothing was installed. Use npm run mods:list.`);
   // Do not support implicit/all/multiple installations. The selected installer validates options.
-  if (options.some(arg => catalog.has(arg)) || options.includes('--all')) throw new Error('Select exactly one package. Nothing was installed.');
+  const positional = [];
+  for (let i = 0; i < options.length; i++) {
+    if (['--base-layout', '--home'].includes(options[i])) { i++; continue; }
+    positional.push(options[i]);
+  }
+  if (positional.some(arg => catalog.has(arg)) || options.includes('--all')) throw new Error('Select exactly one package. Nothing was installed.');
   log(`Selected package: ${pkg.id} (${pkg.mods.join(', ')})`);
   install(pkg, options);
 }
