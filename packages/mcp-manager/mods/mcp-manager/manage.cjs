@@ -4,6 +4,7 @@ const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 const toml = require('smol-toml');
+const { detectLanguage } = require('./locale.cjs');
 const hash = s => crypto.createHash('sha256').update(s).digest('hex');
 const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 function load(file, format) {
@@ -72,6 +73,7 @@ function publicView(state) {
     rows: state.rows.map(({ name, file, scope, enabled }) => ({ name, file, scope, enabled })) };
 }
 function perform(request, home = os.homedir()) {
+  if (request.action === 'language') return { language: detectLanguage() };
   const state = inspect(request, home);
   if (request.action === 'list') return publicView(state);
   if (request.action !== 'apply' || request.confirmed !== true || typeof request.enabled !== 'boolean' || !Array.isArray(request.names) || !request.names.length) throw new Error('Cambio sin confirmación válida');
@@ -115,14 +117,32 @@ function perform(request, home = os.homedir()) {
   }
   return { ...publicView(inspect(request, home)), backups, applied: prepared.length };
 }
-module.exports = { inspect, perform, publicView };
+// Only known diagnostics cross the process boundary, as translation keys and safe values.
+function publicError(e) {
+  if (/^E[A-Z0-9_]+$/.test(e?.code || '')) return { error: true, error_code: 'access_error', error_values: { code: e.code } };
+  const fileErrors = [
+    ['Symlinks no admitidos: ', 'symlink'], ['Configuración demasiado grande: ', 'too_large'],
+    ['Configuración inválida (no se modifica): ', 'invalid_config'], ['Se esperaba un objeto: ', 'expected_object'],
+    ['Tabla MCP inválida: ', 'invalid_table'], ['Entrada MCP inválida: ', 'invalid_entry'], ['Estado MCP inválido: ', 'invalid_state']
+  ];
+  for (const [prefix, key] of fileErrors) if (e?.message?.startsWith(prefix)) return { error: true, error_code: key, error_values: { file: e.message.slice(prefix.length) } };
+  const exact = {
+    'Contexto no válido': 'invalid_context', 'Carpeta de sesión no disponible': 'missing_folder',
+    'Cambio sin confirmación válida': 'confirmation_required', 'Cliente o perfil de solo lectura': 'read_only',
+    'La configuración ha cambiado. Actualiza y confirma de nuevo.': 'stale', 'Selección duplicada': 'duplicate',
+    'Servidor ya no disponible': 'missing_server', 'Cambio concurrente: actualiza antes de guardar': 'concurrent',
+    'Cambio concurrente; puede haber cambios parciales. Revisa los backups.': 'partial'
+  };
+  return { error: true, error_code: Object.prototype.hasOwnProperty.call(exact, e?.message) ? exact[e.message] : 'request_failed' };
+}
+module.exports = { inspect, perform, publicView, publicError };
 if (require.main === module) {
   try {
     const req = JSON.parse(process.argv[2] || '{}');
     console.log(JSON.stringify(perform(req)));
   } catch (e) {
     // Never return parser excerpts, configuration values, or environment contents.
-    console.log(JSON.stringify({ error: e.code ? `No se pudo acceder a la configuración (${e.code}).` : e.message }));
+    console.log(JSON.stringify(publicError(e)));
     process.exitCode = 1;
   }
 }

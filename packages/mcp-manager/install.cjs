@@ -48,7 +48,7 @@ function install(argv) {
   patchTabs(fs.readFileSync(path.join(home, 'mods', sourceName, 'main.js'), 'utf8').replace(/\r\n/g, '\n'));
   if (!managed) integrateLayout(structuredClone(layout));
   const dep = path.resolve(path.dirname(require.resolve('smol-toml')), '..');
-  const files = ['main.js', 'mod.json', 'manage.cjs'].map(name => ({ name, content: fs.readFileSync(path.join(__dirname, 'mods/mcp-manager', name)) }));
+  const files = ['main.js', 'mod.json', 'manage.cjs', 'i18n.js', 'locale.cjs'].map(name => ({ name, content: fs.readFileSync(path.join(__dirname, 'mods/mcp-manager', name)) }));
   function app(...args) {
     const r = spawnSync('herdr-app', args, { encoding: 'utf8', windowsHide: true, env: { ...process.env, HERDR_APP_HOME: home } });
     if (r.error || r.status !== 0) throw new Error(r.error?.message || r.stderr || r.stdout);
@@ -77,7 +77,7 @@ function install(argv) {
     if (!managed) fs.writeFileSync(layoutFile, JSON.stringify(integrateLayout(JSON.parse(fs.readFileSync(layoutFile, 'utf8'))), null, 2) + '\n');
     fs.copyFileSync(path.join(__dirname, 'preview.svg'), path.join(home, 'layouts/mcp-workspace.svg'));
     fs.mkdirSync(path.dirname(markerPath), { recursive: true });
-    fs.writeFileSync(markerPath, JSON.stringify({ package: 'carlosYoko/herdr-mods:mcp-manager', baseLayout: managed ? marker.baseLayout : base, version: '0.1.0' }, null, 2));
+    fs.writeFileSync(markerPath, JSON.stringify({ package: 'carlosYoko/herdr-mods:mcp-manager', baseLayout: managed ? marker.baseLayout : base, version: '0.1.1' }, null, 2));
     for (const dir of [modDir, tabsDir]) console.log(app('check', dir).trim());
     app('do', 'layout.switch', JSON.stringify({ name: options['--no-switch'] ? previous : 'mcp-workspace' }));
   } catch (e) {

@@ -26,6 +26,12 @@ La actualización conserva el layout y la barra clonados: no vuelve a copiar fut
 
 Opciones: `--base-layout <nombre>` (primera instalación), `--home <ruta>`, `--update`, `--no-switch`. Instalación sin rollback completo; backups de archivos previos en `data/community-backups/mcp-*`. No reemplaza destinos ajenos. `Ctrl+Shift+L` permite volver al layout anterior.
 
+## Idiomas
+
+Español e inglés, igual que `codex-usage`: se usa español si el idioma de interfaz del sistema es español (incluidas variantes como es-ES o es-MX); para el resto se usa inglés. Windows consulta Get-UICulture, macOS AppleLanguages y Linux las variables de locale, con fallback a Intl y finalmente inglés. La detección se realiza una vez al iniciar el panel y se comparte entre sus copias; no depende de instalar el paquete de cuotas.
+
+Se traducen botones, estados, avisos de alcance, confirmaciones, orígenes y errores. Nombres de servidores/clientes, rutas, comandos y códigos técnicos se conservan. Los errores del helper se devuelven como códigos y valores seguros, nunca como extractos de configuración. Si no se puede detectar el idioma se conserva el idioma cacheado o se usa inglés.
+
 ## Compatibilidad y alcance real
 
 | Cliente | Archivos estándar | Acciones |
@@ -53,10 +59,10 @@ El helper compara una huella de todos los archivos con la lectura confirmada, bl
 
 **Los backups contienen los mismos secretos que el original.** Se crean con modo 0600 en Unix; Windows hereda ACL de la carpeta. No los publiques. Un backup se restaura manualmente, con el agente detenido y tras revisar cambios posteriores.
 
-El mod ejecuta **Node.js local** mediante `exec`, lee los archivos anteriores fuera de su carpeta y, solo tras confirmar, los modifica y crea backups. No realiza solicitudes de red, no conecta con servidores MCP, no evalúa valores `!comando`, no ejecuta comandos de configuraciones y no muestra URLs, variables de entorno, tokens ni contenido de credenciales. El proceso helper hereda el entorno de Herdr, no el de la terminal. Lee a demanda, al cambiar contexto y cada 15 segundos solo mientras se muestra este panel.
+El mod ejecuta **Node.js local** mediante `exec`; para detectar el idioma también consulta `powershell.exe` (Get-UICulture) en Windows o `/usr/bin/defaults` (AppleLanguages) en macOS. No ejecuta comandos procedentes de configuraciones MCP. Lee los archivos anteriores fuera de su carpeta y, solo tras confirmar, los modifica y crea backups. No realiza solicitudes de red, no conecta con servidores MCP, no evalúa valores `!comando`, no ejecuta comandos de configuraciones y no muestra URLs, variables de entorno, tokens ni contenido de credenciales. El proceso helper hereda el entorno de Herdr, no el de la terminal. Lee a demanda, al cambiar contexto y cada 15 segundos solo mientras se muestra este panel.
 
 ## Validación
 
-`npm test` usa fixtures temporales: precedencia Pi, cambios en bloque, backups, huellas obsoletas, locks, nombres TOML con puntos, conservación de campos/secretos, solo lectura y flujo UI de confirmación/cancelación. No cambia configuraciones reales ni arranca servidores. El instalador ejecuta `herdr-app check` para ambos mods. Interfaz probada en Windows/Herdr 0.1.15; macOS y Linux pendientes de validación visual real. Las pruebas mock de UI no sustituyen la interacción nativa con filas reales.
+`npm test` usa fixtures temporales: precedencia Pi, cambios en bloque, backups, huellas obsoletas, locks, nombres TOML con puntos, conservación de campos/secretos, solo lectura y flujo UI de confirmación/cancelación. No cambia configuraciones reales ni arranca servidores. El instalador ejecuta `herdr-app check` para ambos mods. Interfaz probada en Windows/Herdr 0.1.15; macOS y Linux pendientes de validación visual real. Las pruebas incluyen paridad de claves/placeholders, selección regional de idioma y estados de UI en español e inglés. También se revisó el renderizado nativo de filas y confirmaciones con fixtures sin escritura habilitada; esto no sustituye la interacción con MCP reales.
 
 Para quitarlo, cambia de layout y elimina únicamente `layouts/mcp-workspace.json`, `layouts/mcp-workspace.svg`, `mods/mcp-manager/` y `mods/mcp-workspace-tabs/` (y su marcador `data/community-mcp-manager-install.json`). Esto **no revierte cambios en las configuraciones MCP**.

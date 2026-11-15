@@ -19,13 +19,13 @@ MCP abre/cierra el panel, igual que Files/Changes; elegir uno sustituye al anter
 
 Sigue el terminal realmente enfocado (incluido `terminal.show`); no el primer agente de otra pestaña. Cambiar dirección, cliente o cwd borra datos y confirmación anteriores. Working, blocked, done e idle no cambian la representación de MCP: no indican conexión de servidores ni deben interpretarse como tal. Terminal sin reporte compatible muestra el motivo y no modifica nada; remoto muestra que no está admitido.
 
-Seleccionar un cambio prepara la confirmación; solo Confirmar ejecuta escritura. Los controles se deshabilitan mientras se lee/escribe o se confirma otro cambio. Hay mensajes de lectura, guardado, error y éxito. No se reinicia ni envía nada a la terminal. Pi necesita /reload; Codex, reinicio. Poll de datos cada 15 segundos solo cuando MCP es el panel visible. Sin animaciones mediante timers.
+Seleccionar un cambio prepara la confirmación; solo Confirmar ejecuta escritura. Los controles se deshabilitan mientras se lee/escribe o se confirma otro cambio. Hay mensajes de lectura, guardado, error y éxito. No se reinicia ni envía nada a la terminal. Pi necesita /reload; Codex, reinicio. Poll de datos cada 15 segundos solo cuando MCP es el panel visible. Sin animaciones mediante timers. Español automático si el idioma del sistema es español, inglés para el resto, como codex-usage. Se traducen también avisos, confirmaciones, orígenes y errores; nombres técnicos y rutas no cambian. No se descarta una confirmación pendiente por cambiar el idioma.
 
 ## Built from
 
 Instalador independiente con manifiesto `mcp-manager`. Clona localmente el layout elegido como `mcp-workspace` y su mod de tabs como `mcp-workspace-tabs`; añade `{id:'mcp', type:'block', content:{mod:'mcp-manager'}}` a `panel-body`. Parchea dos anclas pequeñas en la barra: habilitar MCP en la lista y añadir su botón. No redistribuye código oficial. Preview SVG sintética y propio icono SVG.
 
-El panel usa View/div, h_flex/v_flex, focused, panes, agents, terminals, spaces, layout, theme, appHome, exec y run. Sin props especiales. Invoca Node con `mods/mcp-manager/manage.cjs` y una petición JSON de argumentos estructurados. El helper usa fs, path, os, crypto y smol-toml fijado por lockfile. No usa shell ni conecta con MCP. El instalador copia solo los archivos propios y smol-toml con licencia.
+El panel usa View/div, h_flex/v_flex, focused, panes, agents, terminals, spaces, layout, theme, appHome, exec y run. Sin props especiales. Invoca Node con `mods/mcp-manager/manage.cjs` y una petición JSON de argumentos estructurados. El helper usa fs, path, os, crypto y smol-toml fijado por lockfile. `i18n.js` contiene diccionarios en/es, traductor con fallback inglés y errores por código. `locale.cjs` detecta el idioma mediante Get-UICulture en Windows, AppleLanguages en macOS o variables de locale en Linux; fallback Intl/inglés. El panel consulta la acción `language` del helper al iniciar y comparte `mcp.ui.language`, independientemente de cuotas. No usa shell ni conecta con MCP. El instalador copia solo los archivos propios y smol-toml con licencia.
 
 Adaptadores: Pi (JSON usuario/proyecto, precedencia y overrides parciales), Codex (TOML usuario/capas de proyecto y campo enabled), Claude Code (tablas de definiciones JSON, solo lectura). No expone comandos/URLs/secretos: devuelve nombres, booleanos, rutas y huella. Apply exige confirmación y huella vigente, locks exclusivos, backup de cada original, temporales y rename por archivo.
 
@@ -39,7 +39,7 @@ No guardar un cx entre callbacks. Manejar cambios de foco durante una lectura/es
 
 ## Done when
 
-- npm test pasa, incluyendo fixtures MCP y UI sin tocar configuraciones reales.
+- npm test pasa, incluyendo fixtures MCP y UI en español e inglés sin tocar configuraciones reales; claves y placeholders coinciden y un idioma no soportado cae a inglés.
 - herdr-app check pasa para mcp-manager y mcp-workspace-tabs.
 - En la app se ve MCP junto a Files/Changes y se conserva la barra de cuotas del layout base elegido.
 - Pi sin configuración muestra lista vacía; una shell no reutiliza datos Pi.
