@@ -1,10 +1,25 @@
 import { View, div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { exec, appHome, theme, props, closeOverlay, shared, setShared } from "herdr";
+import { exec, appHome, theme, props, closeOverlay, shared, setShared, window } from "herdr";
 import { translator, errorText, creditTitle, creditDescription } from "./i18n.js";
 
 const PENDING = "codex.reset.pending";
 const LOCK = "codex.reset.busyUntil";
+function runQuota(args) {
+  const helper = appHome() + "/mods/codex-quota/read-quota.cjs";
+  return window()?.platform === "macos"
+    ? exec("/bin/zsh", ["-lc", 'if [ -s "$HOME/.nvm/nvm.sh" ]; then . "$HOME/.nvm/nvm.sh"; fi; exec node "$@"', "herdr-codex-quota", helper, ...args], { timeout: 25000 })
+    : exec("node", [helper, ...args], { timeout: 25000 });
+}
+function parseHelperOutput(output) {
+  for (const line of output.split(/\r?\n/).reverse()) {
+    try {
+      const value = JSON.parse(line.trim());
+      if (value && typeof value === "object" && !Array.isArray(value)) return value;
+    } catch {}
+  }
+  throw Object.assign(new Error("The quota helper returned invalid output."), { error_code: "invalid_helper_output" });
+}
 
 export default class CodexResets extends View {
   init(_props, cx) {
@@ -30,10 +45,11 @@ export default class CodexResets extends View {
     this.loading = true;
     cx.spawn(async cx => {
       try {
-        const r = await exec("node", [appHome() + "/mods/codex-quota/read-quota.cjs", "--details"], { timeout: 25000 });
-        const data = JSON.parse(r.stdout.trim());
+        const r = await runQuota(["--details"]);
+        const data = parseHelperOutput(r.stdout);
         if (data.language) setShared("codex.ui.language", data.language);
         if (data.error) throw Object.assign(new Error(data.error), data);
+        if (r.code !== 0) throw Object.assign(new Error("The quota helper exited unsuccessfully."), { error_code: "helper_failed" });
         this.data = data;
         if (!shared(PENDING)) this.error = null;
         setShared("codex.quota.latest", data);
@@ -59,10 +75,11 @@ export default class CodexResets extends View {
     this.error = null;
     cx.spawn(async cx => {
       try {
-        const r = await exec("node", [appHome() + "/mods/codex-quota/read-quota.cjs", "--consume", "--confirmed", "--credit", attempt.credit, "--idempotency-key", attempt.key], { timeout: 25000 });
-        const result = JSON.parse(r.stdout.trim());
+        const r = await runQuota(["--consume", "--confirmed", "--credit", attempt.credit, "--idempotency-key", attempt.key]);
+        const result = parseHelperOutput(r.stdout);
         if (result.language) setShared("codex.ui.language", result.language);
         if (result.error) throw Object.assign(new Error(result.error), result);
+        if (r.code !== 0) throw Object.assign(new Error("The quota helper exited unsuccessfully."), { error_code: "helper_failed" });
         if (!["reset", "nothingToReset", "noCredit", "alreadyRedeemed"].includes(result.outcome)) {
           throw Object.assign(new Error("Unknown redemption outcome"), { code: "unknown_outcome" });
         }

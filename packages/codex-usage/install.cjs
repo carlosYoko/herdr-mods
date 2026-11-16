@@ -20,14 +20,14 @@ function patchTabs(source) {
   replaceOnce('.children(shown.map(item)))', '.children(shown.map(item))\n        .child(this.quotaBar()))');
   return source;
 }
-function integrateLayout(layout, tabsName) {
+function integrateLayout(layout, tabsName, sourceMod = 'tabs') {
   let count = 0;
   function visit(node) {
-    if (node?.content?.mod === 'tabs') { node.content.mod = tabsName; count++; }
+    if (node?.content?.mod === sourceMod) { node.content.mod = tabsName; count++; }
     for (const child of node?.children || []) visit(child);
   }
   visit(layout);
-  if (count !== 1) throw new Error('Base layout must contain exactly one shipped tabs mod. Choose --base-layout main.');
+  if (count !== 1) throw new Error(`Base layout must contain exactly one ${sourceMod} mod.`);
   return layout;
 }
 function main(argv) {
@@ -36,21 +36,25 @@ function main(argv) {
   while (args.length) {
     const key = args.shift();
     if (['--update', '--no-switch'].includes(key)) options[key] = true;
-    else if (['--home', '--base-layout'].includes(key) && args.length) options[key] = args.shift();
+    else if (['--home', '--base-layout', '--tabs-mod', '--layout-name', '--tabs-name'].includes(key) && args.length) options[key] = args.shift();
     else throw new Error(`Unknown/incomplete option: ${key}`);
   }
   const home = path.resolve(options['--home'] || process.env.HERDR_APP_HOME || path.join(os.homedir(), '.config', 'herdr-app'));
   const base = options['--base-layout'] || 'main';
-  if (!/^[a-zA-Z0-9_-]+$/.test(base)) throw new Error('Invalid base layout name');
-  const layoutName = 'codex-usage', tabsName = 'codex-usage-tabs';
+  const sourceTabsName = options['--tabs-mod'] || 'tabs';
+  if (![base, sourceTabsName].every(name => /^[a-zA-Z0-9_-]+$/.test(name))) throw new Error('Invalid base layout or tabs mod name');
+  const layoutName = options['--layout-name'] || 'codex-usage';
+  const tabsName = options['--tabs-name'] || 'codex-usage-tabs';
+  if (![layoutName, tabsName].every(name => /^[a-zA-Z0-9_-]+$/.test(name))) throw new Error('Invalid destination layout or tabs mod name');
   const markerPath = path.join(home, 'data', 'community-codex-usage-install.json');
   const marker = fs.existsSync(markerPath) ? JSON.parse(fs.readFileSync(markerPath, 'utf8')) : null;
-  const managed = marker?.package === 'carlosYoko/herdr-mods:codex-usage';
+  const managed = marker?.package === 'carlosYoko/herdr-mods:codex-usage' && marker?.layoutName === layoutName && marker?.tabsName === tabsName;
   const layoutPath = path.join(home, 'layouts', `${layoutName}.json`);
   const tabsDir = path.join(home, 'mods', tabsName);
   const destinations = [...Object.keys(FILES).map(n => path.join(home, 'mods', n)), tabsDir, layoutPath];
-  if (destinations.some(p => fs.existsSync(p)) && !options['--update']) throw new Error('Some destination names already exist. Review them, then use --update to explicitly replace package code (backed up).');
-  if (!managed && (fs.existsSync(tabsDir) || fs.existsSync(layoutPath))) throw new Error('Layout/tab clone name already in use and not managed by this installer. Nothing was changed.');
+  const packageDestinations = destinations.filter(p => p !== tabsDir && p !== layoutPath);
+  if (packageDestinations.some(p => fs.existsSync(p)) && !options['--update']) throw new Error('Some package mod names already exist. Review them, then use --update to explicitly replace package code (backed up).');
+  if (!managed && (fs.existsSync(tabsDir) || fs.existsSync(layoutPath))) throw new Error('A destination name is already in use. Choose unused --layout-name and --tabs-name values; nothing was changed.');
   // Preflight every source and protocol adapter before any writes or app commands.
   const files = [];
   for (const [name, names] of Object.entries(FILES)) for (const file of names) {
@@ -60,9 +64,9 @@ function main(argv) {
   for (const name of [...Object.keys(FILES), tabsName]) {
     files.push({ relative: path.join('mods', name, 'i18n.js'), contents: translations });
   }
-  const sourceTabsPath = managed ? path.join(tabsDir, 'main.js') : path.join(home, 'mods', 'tabs', 'main.js');
+  const sourceTabsPath = managed ? path.join(tabsDir, 'main.js') : path.join(home, 'mods', sourceTabsName, 'main.js');
   const patchedTabs = patchTabs(fs.readFileSync(sourceTabsPath, 'utf8').replace(/\r\n/g, '\n'));
-  if (!managed) integrateLayout(JSON.parse(fs.readFileSync(path.join(home, 'layouts', `${base}.json`), 'utf8')), tabsName);
+  if (!managed) integrateLayout(JSON.parse(fs.readFileSync(path.join(home, 'layouts', `${base}.json`), 'utf8')), tabsName, sourceTabsName);
   function app(...args) {
     const r = spawnSync('herdr-app', args, { encoding: 'utf8', env: { ...process.env, HERDR_APP_HOME: home }, windowsHide: true });
     if (r.error || r.status !== 0) throw new Error(`herdr-app ${args[0]} failed: ${r.error?.message || r.stderr || r.stdout}`);
@@ -84,7 +88,7 @@ function main(argv) {
   let previousLayout;
   try { previousLayout = JSON.parse(app('status')).layout; } catch {}
   if (!managed) {
-    app('do', 'mod.clone', JSON.stringify({ name: 'tabs', as: tabsName }));
+    app('do', 'mod.clone', JSON.stringify({ name: sourceTabsName, as: tabsName }));
     app('do', 'layout.clone', JSON.stringify({ name: base, as: layoutName }));
   }
   // Clone rewrites asset paths; apply the patch to that local version, not shipped code.
@@ -98,13 +102,13 @@ function main(argv) {
   fs.writeFileSync(path.join(tabsDir, 'quota.js'), fs.readFileSync(path.join(ROOT, 'packages', 'codex-usage', 'mods', 'codex-quota', 'main.js')));
   fs.writeFileSync(path.join(tabsDir, 'main.js'), integratedSource);
   if (!managed) {
-    const layout = integrateLayout(JSON.parse(fs.readFileSync(layoutPath, 'utf8')), tabsName);
+    const layout = integrateLayout(JSON.parse(fs.readFileSync(layoutPath, 'utf8')), tabsName, sourceTabsName);
     layout.preview = 'layouts/codex-usage.svg';
     fs.writeFileSync(layoutPath, JSON.stringify(layout, null, 2) + '\n');
   }
   fs.copyFileSync(path.join(ROOT, 'packages', 'codex-usage', 'preview.svg'), path.join(home, 'layouts', 'codex-usage.svg'));
   fs.mkdirSync(path.dirname(markerPath), { recursive: true });
-  fs.writeFileSync(markerPath, JSON.stringify({ package: 'carlosYoko/herdr-mods:codex-usage', version: '0.1.0', baseLayout: base }, null, 2));
+  fs.writeFileSync(markerPath, JSON.stringify({ package: 'carlosYoko/herdr-mods:codex-usage', version: '0.1.0', baseLayout: base, layoutName, tabsName }, null, 2));
   try {
     for (const name of [...Object.keys(FILES), tabsName]) console.log(app('check', path.join(home, 'mods', name)).trim());
   } catch (e) {

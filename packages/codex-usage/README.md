@@ -71,6 +71,8 @@ servidor ni sincroniza intentos entre ordenadores.
 
 Lista de paquetes: `npm run mods:list`.
 Instala solo este paquete: `npm run mod:install -- codex-usage`.
+
+Para conservar otro layout personal, selecciona su nombre y el mod de pestañas que usa. El instalador crea un layout y una copia de pestañas nuevos, sustituyendo solo esa referencia en la copia; no cambia el layout original ni los demás bloques. Ejemplo: `npm run mod:install -- codex-usage --base-layout files-icons-layout --tabs-mod tabs-compact --layout-name files-icons-codex --tabs-name tabs-compact-codex`. Usa nombres de destino libres; si ya existen, la instalación se detiene sin reemplazarlos. Si la barra no es compatible con los anclajes esperados, también se detiene sin modificarla.
 Actualiza solo este paquete: `npm run mod:install -- codex-usage --update`.
 `codex-quota` y `codex-resets` forman un conjunto y se instalan juntos.
 Otros paquetes presentes o futuros no se instalan con este comando.

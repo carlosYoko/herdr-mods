@@ -27,7 +27,10 @@ export const messages = {
     rpc_error: "Codex rejected the request. Check your Codex login.",
     unknown_outcome: "Unknown redemption response. Do not start a different attempt; retry with the same key.",
     no_limits: "The account returned no quotas. Check your Codex login.",
-    request_failed: "The Codex request failed. Check that Node and Codex are available."
+    request_failed: "The Codex request failed. Check that Node and Codex are available.",
+    launcher_failed: "Herdr could not launch the Node shell for the quota helper.",
+    helper_failed: "The quota helper exited unsuccessfully before returning data.",
+    invalid_helper_output: "The quota helper returned output that was not valid JSON."
   },
   es: {
     noDate: "sin fecha", noExpiry: "Sin caducidad", quotaHint: "Codex · cuota RESTANTE · clic para actualizar",
@@ -56,7 +59,10 @@ export const messages = {
     rpc_error: "Codex rechazó la petición. Comprueba la sesión de Codex.",
     unknown_outcome: "Respuesta de canje desconocida. No inicies otro canje; reintenta con la misma clave.",
     no_limits: "La cuenta no ha devuelto cuotas. Comprueba el login de Codex.",
-    request_failed: "Falló la petición a Codex. Comprueba que Node y Codex estén disponibles."
+    request_failed: "Falló la petición a Codex. Comprueba que Node y Codex estén disponibles.",
+    launcher_failed: "Herdr no pudo iniciar la shell de Node para consultar la cuota.",
+    helper_failed: "El helper de cuotas terminó con error antes de devolver datos.",
+    invalid_helper_output: "El helper de cuotas devolvió una respuesta que no es JSON válido."
   }
 };
 export function translator(language = "en") {
@@ -67,6 +73,7 @@ export function translator(language = "en") {
 export function errorText(error, language) {
   const tr = translator(language);
   const code = error?.error_code || error?.code;
+  if (code === "invalid_helper_output" && error?.message) return error.message;
   if (code && messages.en[code]) return tr(code) + (error.error_rpc_code !== undefined ? ` (${error.error_rpc_code})` : "");
   return tr("request_failed");
 }
