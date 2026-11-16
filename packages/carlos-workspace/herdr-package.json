@@ -1,0 +1,6 @@
+{
+  "id": "carlos-workspace",
+  "description": "Preset visual portable: layout compacto, padding reducido y tema graphite; sin mods propios.",
+  "mods": [],
+  "installer": "install.cjs"
+}

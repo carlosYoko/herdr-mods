@@ -19,6 +19,7 @@ El repositorio y el instalador general están diseñados para Linux, macOS y Win
 | Paquete | Función | Idiomas |
 | --- | --- | --- |
 | [codex-usage](packages/codex-usage/) | Cuota restante de 5 horas y semanal; panel de reinicios con confirmación de canje. | Español automático si el sistema está en español; inglés para el resto. |
+| [carlos-workspace](packages/carlos-workspace/) | Preset visual portable: tema graphite, paddings y layout compacto; sin mods propios. | Sin textos propios. |
 | [mcp-manager](packages/mcp-manager/) | Panel junto a Files/Changes: configuración estándar de Pi y Codex; Claude Code en solo lectura. | Español automático si el sistema está en español; inglés para el resto. |
 
 Los paquetes se instalan por separado. Instalar uno no instala los demás.
