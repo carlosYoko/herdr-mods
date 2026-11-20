@@ -1,0 +1,8 @@
+{
+  "id": "company-prs",
+  "description": "PRs abiertas de la empresa, propias y asignadas para revisar por usuario o equipo.",
+  "mods": ["company-prs"],
+  "installer": "install.cjs",
+  "platforms": ["darwin"],
+  "languages": ["en", "es"]
+}

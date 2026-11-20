@@ -8,9 +8,10 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node packages/codex-usage/mods/codex-quota/test-protocol.cjs && node scripts/test-installer.cjs && node scripts/test-workspace-preset.cjs && node scripts/test-selection.cjs && node scripts/test-i18n.cjs && node scripts/test-mcp.cjs && node scripts/test-mcp-ui.cjs",
+    "test": "node packages/codex-usage/mods/codex-quota/test-protocol.cjs && node packages/company-prs/test.cjs && node scripts/test-installer.cjs && node scripts/test-workspace-preset.cjs && node scripts/test-selection.cjs && node scripts/test-i18n.cjs && node scripts/test-mcp.cjs && node scripts/test-mcp-ui.cjs",
     "mods:list": "node scripts/install.cjs --list",
-    "mod:install": "node scripts/install.cjs"
+    "mod:install": "node scripts/install.cjs",
+    "mod:company-prs": "node packages/company-prs/install.cjs"
   },
   "dependencies": {
     "smol-toml": "1.9.1"
