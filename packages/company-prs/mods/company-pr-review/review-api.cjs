@@ -1,8 +1,12 @@
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const https = require('node:https');
 
 const MAX_COMMENT_LENGTH = 65536;
 const MAX_COMMENTS = 100;
 const GH_BINARIES = ['/opt/homebrew/bin/gh', '/usr/local/bin/gh', 'gh'];
+const MAX_AVATAR_BYTES = 1024 * 1024;
 
 function parsePatch(patch) {
   if (!patch) return [];
@@ -32,6 +36,68 @@ function parsePatch(patch) {
     }
   }
   return rows;
+}
+
+function downloadImage(url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    let parsed;
+    try { parsed = new URL(url); } catch { reject(new Error('Invalid GitHub avatar URL.')); return; }
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'avatars.githubusercontent.com' || redirects > 3) {
+      reject(new Error('Avatar URL is outside the allowed GitHub image host.'));
+      return;
+    }
+    const req = https.get(parsed, { headers: { 'User-Agent': 'Herdr-Company-PR-Review', Accept: 'image/*' } }, response => {
+      if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location) {
+        response.resume();
+        downloadImage(new URL(response.headers.location, parsed).toString(), redirects + 1).then(resolve, reject);
+        return;
+      }
+      const contentType = String(response.headers['content-type'] || '').split(';')[0].toLowerCase();
+      const extensions = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
+      if (response.statusCode !== 200 || !extensions[contentType]) {
+        response.resume();
+        reject(new Error('GitHub did not return a supported avatar image.'));
+        return;
+      }
+      const chunks = [];
+      let size = 0;
+      response.on('data', chunk => {
+        size += chunk.length;
+        if (size > MAX_AVATAR_BYTES) {
+          req.destroy(new Error('GitHub avatar exceeds the size limit.'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on('end', () => resolve({ data: Buffer.concat(chunks), extension: extensions[contentType] }));
+      response.on('error', reject);
+    });
+    req.setTimeout(8000, () => req.destroy(new Error('GitHub avatar request timed out.')));
+    req.on('error', reject);
+  });
+}
+
+async function cacheAvatar(login, avatarUrl, appRoot, download = downloadImage) {
+  if (typeof login !== 'string' || !/^[A-Za-z0-9-]{1,39}$/.test(login)) throw new Error('Invalid GitHub username for avatar.');
+  if (typeof appRoot !== 'string' || !path.isAbsolute(appRoot)) throw new Error('Invalid Herdr app home.');
+  const parsed = new URL(avatarUrl);
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'avatars.githubusercontent.com') throw new Error('Avatar URL is outside the allowed GitHub image host.');
+  const directory = path.join(appRoot, 'data', 'company-pr-review', 'avatars');
+  fs.mkdirSync(directory, { recursive: true });
+  const prefix = path.join(directory, login.toLowerCase());
+  const existing = ['png', 'jpg', 'webp', 'gif'].map(extension => `${prefix}.${extension}`).find(file => {
+    try { return Date.now() - fs.statSync(file).mtimeMs < 7 * 24 * 60 * 60 * 1000; } catch { return false; }
+  });
+  if (existing) return { path: path.relative(appRoot, existing).split(path.sep).join('/') };
+  const image = await download(avatarUrl);
+  if (!image || !Buffer.isBuffer(image.data) || image.data.length > MAX_AVATAR_BYTES || !['png', 'jpg', 'webp', 'gif'].includes(image.extension)) {
+    throw new Error('GitHub returned an invalid avatar image.');
+  }
+  const target = `${prefix}.${image.extension}`;
+  const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(temporary, image.data, { mode: 0o600 });
+  fs.renameSync(temporary, target);
+  return { path: path.relative(appRoot, target).split(path.sep).join('/') };
 }
 
 function validateIdentity(owner, repo, number) {
@@ -157,14 +223,14 @@ function submitReview(owner, repo, number, payload, runRequest = request) {
   return result;
 }
 
-function main(argv) {
+async function main(argv) {
   const [operation, owner, repo, number, rawPayload] = argv;
   try {
-    const result = operation === 'fetch'
-      ? fetchReview(owner, repo, number)
-      : operation === 'submit'
-        ? submitReview(owner, repo, number, JSON.parse(rawPayload || 'null'))
-        : (() => { throw new Error('Unknown GitHub review operation.'); })();
+    let result;
+    if (operation === 'fetch') result = fetchReview(owner, repo, number);
+    else if (operation === 'submit') result = submitReview(owner, repo, number, JSON.parse(rawPayload || 'null'));
+    else if (operation === 'avatar') result = await cacheAvatar(owner, repo, number);
+    else throw new Error('Unknown GitHub review operation.');
     process.stdout.write(JSON.stringify({ ok: true, result }) + '\n');
   } catch (error) {
     process.stdout.write(JSON.stringify({ ok: false, code: error.code || 'request_failed', error: error.message }) + '\n');
@@ -172,5 +238,5 @@ function main(argv) {
   }
 }
 
-module.exports = { endpoint, fetchReview, parsePatch, request, submitReview, validateIdentity, validateReviewPayload };
+module.exports = { cacheAvatar, endpoint, fetchReview, parsePatch, request, submitReview, validateIdentity, validateReviewPayload };
 if (require.main === module) main(process.argv.slice(2));

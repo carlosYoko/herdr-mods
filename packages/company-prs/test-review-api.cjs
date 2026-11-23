@@ -1,5 +1,8 @@
 const assert = require('node:assert/strict');
-const { endpoint, fetchReview, parsePatch, request, submitReview, validateReviewPayload } = require('./mods/company-pr-review/review-api.cjs');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { cacheAvatar, endpoint, fetchReview, parsePatch, request, submitReview, validateReviewPayload } = require('./mods/company-pr-review/review-api.cjs');
 
 assert.equal(endpoint('nomoapp', 'nomo-server-app', 11003), '/repos/nomoapp/nomo-server-app/pulls/11003');
 assert.throws(() => endpoint('../org', 'repo', 1), /owner/i);
@@ -55,4 +58,21 @@ assert.equal(bundle.comments[0].body, 'existing');
 assert.equal(bundle.reviews[0].state, 'APPROVED');
 assert.equal(pages.length, 4);
 
-console.log('Passed: GitHub review API allowlist, multiline payload validation, mocked POST and PR review fetch.');
+(async () => {
+  const appRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'company-pr-review-avatar-'));
+  try {
+    let downloads = 0;
+    const avatarUrl = 'https://avatars.githubusercontent.com/u/1?v=4';
+    const downloader = async () => { downloads++; return { data: Buffer.from('mock-avatar'), extension: 'png' }; };
+    const cached = await cacheAvatar('octocat', avatarUrl, appRoot, downloader);
+    assert.equal(cached.path, 'data/company-pr-review/avatars/octocat.png');
+    assert.equal(fs.readFileSync(path.join(appRoot, cached.path), 'utf8'), 'mock-avatar');
+    assert.deepEqual(await cacheAvatar('octocat', avatarUrl, appRoot, downloader), cached);
+    assert.equal(downloads, 1, 'fresh avatar cache avoids another network request');
+    await assert.rejects(cacheAvatar('../user', avatarUrl, appRoot, downloader), /username/i);
+    await assert.rejects(cacheAvatar('octocat', 'https://example.com/avatar.png', appRoot, downloader), /allowed GitHub/i);
+  } finally {
+    fs.rmSync(appRoot, { recursive: true, force: true });
+  }
+  console.log('Passed: GitHub review API allowlist, multiline payload validation, mocked POST, avatar cache and PR review fetch.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

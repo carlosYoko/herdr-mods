@@ -6,7 +6,7 @@ Herdr mod cloned from the locally installed `my-prs` mod, with three horizontal 
 - **Mis PRs**: open PRs authored by the current GitHub CLI user.
 - **PRs Asignadas**: open PRs assigned directly to the user, requesting their review, or requesting review from `easor-white-walkers`.
 
-Existing manual URL tracking is retained. Selecting a PR opens a modal with its description, changed files, unified diffs, existing review comments, and review summaries. Click one diff line to set the start of an inline comment, then another line on the same diff side to set its end; this supports multiline ranges. Draft comments can be removed before submitting. The modal can submit a comment review or an explicit approval.
+Existing manual URL tracking is retained. Selecting a PR opens a modal with its description, changed files, unified diffs, existing review comments, and review summaries. The PR creator's GitHub username and avatar appear discreetly beneath the title; the public avatar is cached locally with an initials fallback. Each diff row has a visible **Comentar** action; click it to set the start, then **Fin** on another line in the same hunk for a multiline comment. **Usar esta línea** creates a single-line comment. The PR description is collapsed by default and can be expanded; the general review comment stays visible, and diffs use GitHub dark palette colors. Draft comments can be removed before submitting. The modal can submit a comment review or an explicit approval.
 
 GitHub actions use an allowlisted helper and the authenticated `gh` CLI; credentials are never copied into Herdr state. An ambiguous submission result is not retried automatically and blocks duplicate submission until the user confirms they checked GitHub.
 
