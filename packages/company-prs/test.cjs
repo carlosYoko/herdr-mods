@@ -16,6 +16,8 @@ for (const required of [
   'this.tab("own", "Mis PRs"',
   'this.tab("assigned", "PRs Asignadas"',
   'this.selectedTab === "assigned" ? this.sections.review',
+  'mod: "company-pr-review"',
+  'this.review(pr, cx)',
   'if (checking()) return'
 ]) assert.ok(source.includes(required), `expected mod to include ${required}`);
 assert.ok(!source.includes('org:nomoapp'), 'organization is discovered from current GitHub memberships, not hard-coded');

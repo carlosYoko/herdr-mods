@@ -1,7 +1,7 @@
 {
   "id": "company-prs",
-  "description": "PRs abiertas de la empresa, propias y asignadas para revisar por usuario o equipo.",
-  "mods": ["company-prs"],
+  "description": "Tabs de PRs de empresa/propias/asignadas con diffs y reviews de GitHub en un modal.",
+  "mods": ["company-prs", "company-pr-review"],
   "installer": "install.cjs",
   "platforms": ["darwin"],
   "languages": ["en", "es"]

@@ -1,6 +1,6 @@
 import { View, div } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { exec, theme, shared, setShared, checking } from "herdr";
+import { exec, theme, shared, setShared, checking, openOverlay } from "herdr";
 
 const TEAM_SLUG = "easor-white-walkers";
 const GH_BINARIES = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "gh"];
@@ -185,6 +185,21 @@ export default class CompanyPRs extends View {
     cx.notify();
   }
 
+  review(pr, cx) {
+    const name = pr.repository && pr.repository.nameWithOwner;
+    if (!name || !/^\d+$/.test(String(pr.number))) return;
+    const [owner, repo] = name.split("/");
+    if (!owner || !repo) return;
+    openOverlay({
+      mod: "company-pr-review",
+      kind: "dialog",
+      modal: true,
+      width: 0.94,
+      height: 0.92,
+      props: { owner, repo, number: pr.number, title: pr.title, url: pr.url }
+    });
+  }
+
   open(url, cx) {
     if (!/^https:\/\//.test(url || "")) return;
     cx.spawn(async cx => {
@@ -223,7 +238,7 @@ export default class CompanyPRs extends View {
           .on_click((_event, cx) => { this.expanded.has(pr.url) ? this.expanded.delete(pr.url) : this.expanded.add(pr.url); cx.notify(); })
           .child(this.expanded.has(pr.url) ? "▾" : "▸"))
         .child(div().id(`pr-${sectionId}-${pr.url}`).flex_1().min_w(0).truncate().cursor_pointer().tooltip(pr.title)
-          .on_click((_event, cx) => this.open(pr.url, cx)).child(`${(pr.repository && pr.repository.nameWithOwner) || "repo"} #${pr.number}`))
+          .on_click((_event, cx) => this.review(pr, cx)).child(`${(pr.repository && pr.repository.nameWithOwner) || "repo"} #${pr.number}`))
         .child(div().text_color(t.dim).text_size(10).child((pr.author && pr.author.login) || "")),
       div().px(8).text_color(t.muted).truncate().child(`${pr.isDraft ? "Draft · " : ""}${pr.title}`),
       div().px(8).py(4).text_size(11).text_color(state ? t[state] : t.dim)

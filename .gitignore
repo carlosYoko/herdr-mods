@@ -22,3 +22,5 @@ sessions/
 archived_sessions/
 backups/
 .gpui/
+packages/*/mods/*/gpui-kit.d.ts
+packages/*/mods/*/jsconfig.json
