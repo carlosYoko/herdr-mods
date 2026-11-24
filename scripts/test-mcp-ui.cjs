@@ -25,7 +25,7 @@ assert.equal(publicError(new Error('Configuración inválida (no se modifica): /
 assert.equal(publicError(new Error('La configuración ha cambiado. Actualiza y confirma de nuevo.')).error_code, 'stale');
 assert.ok(!i18n.errorText(new Error('SECRET_PARSER_EXCERPT'), 'en').includes('SECRET'));
 assert.ok(i18n.errorText({ error_code: 'invalid_config', error_values: { file: '/fixture' } }, 'en').includes('/fixture'));
-let texts = [], callbacks = new Map(), focus, calls = [], state = new Map(), detectedLanguage;
+let texts = [], callbacks = new Map(), focus, calls = [], authCalls = [], authExitCode = 0, state = new Map(), detectedLanguage;
 function builder() {
   let proxy, id;
   proxy = new Proxy({}, { get(_t, key) {
@@ -41,6 +41,7 @@ const sandbox = { ...i18n, View: class {}, div: builder, h_flex: builder, v_flex
   panes: () => [{ terminal: 't1', app: 'pi' }], agents: () => [], terminals: () => [], spaces: () => [{ id: 's', machine: null }],
   shared: key => state.get(key), setShared: (key, value) => state.set(key, value),
   appHome: () => '/app', layout: () => ({}), run: () => {}, exec: async (_cmd, args) => {
+    if (args[0] === 'mcp' && args[1] === 'login') { authCalls.push(args); return { code: authExitCode, stdout: 'SECRET_AUTH_OUTPUT', stderr: 'SECRET_AUTH_ERROR' }; }
     const request = JSON.parse(args[1]);
     if (request.action === 'language') return { code: 0, stdout: JSON.stringify({ language: detectedLanguage }) };
     calls.push(request); return { code: 0, stdout: JSON.stringify({ rows: [], files: [], writable: true, snapshot: 'new' }) };
@@ -51,24 +52,37 @@ const cx = { timer: { every: () => {} }, notify: () => {}, spawn: fn => { tasks.
 const flush = async () => { await Promise.all(tasks); tasks = []; };
 (async () => {
   for (const language of ['en', 'es']) {
-    detectedLanguage = language; state.clear(); calls = []; callbacks.clear();
+    detectedLanguage = language; state.clear(); calls = []; authCalls = []; authExitCode = 0; callbacks.clear();
     focus = { terminal: 't1', cwd: '/project', space: 's', tab: 'tab' };
     const tr = i18n.translator(language), panel = new sandbox.Exported();
     panel.init({}, cx); panel.render(cx); await flush(); assert.equal(calls[0].client, 'pi');
     assert.equal(state.get('mcp.ui.language'), language);
-    panel.data = { rows: [{ name: 'fixture', file: '/project/.pi/mcp.json', scope: 'Proyecto', enabled: true }], files: [{ exists: true, file: '/project/.pi/mcp.json' }], writable: true, snapshot: 'fixture' };
+    panel.data = { rows: [{ name: 'fixture', file: '/project/.pi/mcp.json', scope: 'Proyecto', enabled: true, oauth: true }], files: [{ exists: true, file: '/project/.pi/mcp.json' }], writable: true, snapshot: 'fixture' };
     panel.details = true;
     texts = []; callbacks.clear(); panel.render(cx);
     for (const key of ['refresh', 'enabled', 'enableAll', 'disableAll', 'reload']) assert.ok(texts.includes(tr(key)), language + ': ' + key);
     assert.ok(texts.some(t => t.includes(tr('noticePi'))));
+    assert.ok(texts.includes(tr('signIn')));
     assert.ok(texts.includes(tr('fileRead', { file: '/project/.pi/mcp.json' })));
+    callbacks.get('login-0')({}, cx); await flush();
+    assert.deepEqual(Array.from(authCalls[0]), ['mcp', 'login', 'fixture', '--local', '--timeout', '300']);
+    assert.equal(panel.message, 'signedIn');
+    authExitCode = 1; callbacks.get('login-0')({}, cx); await flush();
+    assert.equal(panel.error.error_code, 'oauthFailed');
+    texts = []; panel.render(cx);
+    assert.ok(!texts.includes('SECRET_AUTH_OUTPUT') && !texts.includes('SECRET_AUTH_ERROR'), 'OAuth process output must not enter the UI');
+    authExitCode = 0; panel.error = null; panel.message = null;
+    panel.data.rows[0].enabled = false;
+    texts = []; callbacks.clear(); panel.render(cx);
     assert.ok(texts.includes(tr('project') + ' · /project/.pi/mcp.json'));
     callbacks.get('toggle-0')({}, cx); assert.equal(calls.length, 1, 'selection must not write');
-    texts = []; panel.render(cx); assert.ok(texts.includes(tr('confirm'))); assert.ok(texts.includes(tr('warning'))); assert.ok(panel.pending);
-    callbacks.get('cancel')({}, cx); assert.equal(panel.pending, null); assert.equal(calls.length, 1);
+    assert.equal(panel.pending.enabled, true); assert.equal(panel.pending.authTargets[0].name, 'fixture');
+    texts = []; panel.render(cx); assert.ok(texts.includes(tr('confirm'))); assert.ok(texts.includes(tr('warning'))); assert.ok(texts.includes(tr('oauthAfterEnable')));
+    callbacks.get('cancel')({}, cx); assert.equal(panel.pending, null); assert.equal(calls.length, 1); assert.equal(authCalls.length, 2, 'cancel does not start OAuth');
     callbacks.get('toggle-0')({}, cx); panel.render(cx); callbacks.get('confirm')({}, cx); await flush();
     assert.equal(calls[1].action, 'apply'); assert.equal(calls[1].confirmed, true); assert.equal(calls[1].snapshot, 'fixture');
-    texts = []; panel.render(cx); assert.ok(texts.includes(tr('saved'))); assert.ok(texts.includes(tr('empty')));
+    assert.equal(authCalls.length, 3, 'confirmed enable starts Pi OAuth');
+    texts = []; panel.render(cx); assert.ok(texts.includes(tr('signedIn'))); assert.ok(texts.includes(tr('empty')));
     panel.error = { error_code: 'stale' }; texts = []; panel.render(cx); assert.ok(texts.includes(tr('stale')));
     // Language changes do not discard context or a pending confirmation.
     panel.pending = { names: ['fixture'], enabled: false };

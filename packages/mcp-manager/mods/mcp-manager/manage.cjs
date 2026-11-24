@@ -65,12 +65,20 @@ function inspect(request, home = os.homedir()) {
   const profileMcp = client === 'codex' && Object.values(files[0].data.profiles || {}).some(p => p?.mcp_servers);
   const rows = [...effective.values()].sort((a,b) => a.name.localeCompare(b.name));
   const snapshot = hash(JSON.stringify(files.map(f => [f.file, f.raw])));
-  return { files, key, rows, snapshot, notice, writable: client !== 'claude' && !profileMcp };
+  return { client, files, key, rows, snapshot, notice, writable: client !== 'claude' && !profileMcp };
+}
+function supportsPiOAuth(client, config) {
+  if (client !== 'pi' || typeof config.url !== 'string') return false;
+  let protocol;
+  try { protocol = new URL(config.url).protocol; } catch { return false; }
+  if (!['http:', 'https:'].includes(protocol)) return false;
+  const headers = object(config.headers) ? config.headers : {};
+  return !Object.keys(headers).some(name => name.toLowerCase() === 'authorization');
 }
 function publicView(state) {
   return { snapshot: state.snapshot, notice: state.notice, writable: state.writable,
     files: state.files.map(f => ({ file: f.file, scope: f.scope, exists: f.raw !== null })),
-    rows: state.rows.map(({ name, file, scope, enabled }) => ({ name, file, scope, enabled })) };
+    rows: state.rows.map(({ name, file, scope, enabled, config }) => ({ name, file, scope, enabled, oauth: supportsPiOAuth(state.client, config) })) };
 }
 function perform(request, home = os.homedir()) {
   if (request.action === 'language') return { language: detectLanguage() };

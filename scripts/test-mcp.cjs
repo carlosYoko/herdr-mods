@@ -13,11 +13,16 @@ const user = path.join(home, '.pi/agent/mcp.json'), project = path.join(cwd, '.p
 const request = { client:'pi', cwd, action:'list' };
 try {
   let view = perform(request, home); assert.deepEqual(view.rows, []);
-  put(user, JSON.stringify({ unrelated: 123, mcpServers: { alpha: { command:'NEVER_EXECUTE', env:{ TOKEN:'SECRET_FIXTURE' } }, beta:{ url:'https://invalid.test',enabled:false } } }));
+  put(user, JSON.stringify({ unrelated: 123, mcpServers: { alpha: { command:'NEVER_EXECUTE', env:{ TOKEN:'SECRET_FIXTURE' } }, beta:{ url:'https://invalid.test/mcp',enabled:false }, gamma:{ url:'https://invalid.test/auth',headers:{ Authorization:'Bearer SECRET_FIXTURE' } }, delta:{ url:'ftp://invalid.test/mcp' } } }));
   put(project, JSON.stringify({ mcpServers:{ alpha:{ enabled:false }, unicode:{ command:'NEVER_EXECUTE' } } }));
   view = perform(request, home);
   assert.equal(view.rows.find(r=>r.name==='alpha').scope, 'Proyecto');
   assert.equal(view.rows.find(r=>r.name==='alpha').enabled, false);
+  assert.equal(view.rows.find(r=>r.name==='beta').oauth, true, 'Pi remote HTTP servers without Authorization can use Pi OAuth');
+  assert.equal(view.rows.find(r=>r.name==='gamma').oauth, false, 'static Authorization headers bypass Pi OAuth');
+  assert.equal(view.rows.find(r=>r.name==='alpha').oauth, false);
+  assert.equal(view.rows.find(r=>r.name==='delta').oauth, false, 'non-HTTP URLs cannot use Pi OAuth');
+  assert.ok(!JSON.stringify(view).includes('https://invalid.test'), 'remote URLs are not exposed to Herdr state');
   assert.ok(!JSON.stringify(view).includes('SECRET_FIXTURE'));
   assert.ok(!JSON.stringify(view).includes('NEVER_EXECUTE'));
   const apply = { ...request, action:'apply', confirmed:true, snapshot:view.snapshot, names:['alpha','beta'], enabled:true };

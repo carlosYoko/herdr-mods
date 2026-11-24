@@ -21,7 +21,7 @@ function context() {
 }
 export default class McpManager extends View {
   init(_props, cx) {
-    this.key = null; this.data = null; this.error = null; this.loading = false; this.writing = false; this.version = 0;
+    this.key = null; this.data = null; this.error = null; this.loading = false; this.writing = false; this.authenticating = null; this.version = 0;
     cx.spawn(async cx => {
       try {
         const r = await exec("node", [appHome() + "/mods/mcp-manager/manage.cjs", JSON.stringify({ action: "language" })], { timeout: 6000 });
@@ -32,11 +32,11 @@ export default class McpManager extends View {
     });
     cx.timer.every(15000, cx => {
       const root = layout(), panel = find(root, "panel"), body = find(root, "panel-body");
-      if (panel && !panel.hidden && body?.active === "mcp" && !this.pending && !this.writing) this.refresh(cx);
+      if (panel && !panel.hidden && body?.active === "mcp" && !this.pending && !this.writing && !this.authenticating) this.refresh(cx);
     });
   }
   refresh(cx) {
-    if (!this.ctx?.client || !this.ctx.cwd || this.ctx.remote || this.writing) return;
+    if (!this.ctx?.client || !this.ctx.cwd || this.ctx.remote || this.writing || this.authenticating) return;
     const version = ++this.version;
     const request = { action: "list", client: this.ctx.client, cwd: this.ctx.cwd };
     this.loading = true; this.error = null;
@@ -52,14 +52,40 @@ export default class McpManager extends View {
       finally { if (version === this.version) { this.loading = false; cx.notify(); } }
     });
   }
-  ask(names, enabled, cx) {
-    if (this.loading || this.writing || !this.data?.writable) return;
-    this.pending = { client: this.ctx.client, cwd: this.ctx.cwd, names, enabled, snapshot: this.data.snapshot };
+  ask(names, enabled, cx, authTargets = []) {
+    if (this.loading || this.writing || this.authenticating || !this.data?.writable) return;
+    this.pending = { client: this.ctx.client, cwd: this.ctx.cwd, names, enabled, snapshot: this.data.snapshot, authTargets };
     this.message = null; cx.notify();
   }
+  signIn(row, cx) {
+    if (this.ctx.client !== "pi" || !row.oauth || this.loading || this.writing || this.authenticating || this.pending) return;
+    this.startPiOAuth({ name: row.name, local: row.scope === "Proyecto", cwd: this.ctx.cwd }, this.version, cx);
+  }
+  startPiOAuth(target, version, cx) {
+    this.authenticating = target.name;
+    this.error = null;
+    this.message = "signingIn";
+    cx.notify();
+    cx.spawn(async cx => {
+      try {
+        const args = ["mcp", "login", target.name];
+        if (target.local) args.push("--local");
+        args.push("--timeout", "300");
+        const result = await exec("pi", args, { cwd: target.cwd, timeout: 310000 });
+        if (result.code !== 0) throw { error_code: "oauth_failed" };
+        if (version === this.version) this.message = "signedIn";
+      } catch {
+        if (version === this.version) { this.error = { error_code: "oauthFailed" }; this.message = null; }
+      } finally {
+        if (this.authenticating === target.name) this.authenticating = null;
+        cx.notify();
+      }
+    });
+  }
   apply(cx) {
-    if (!this.pending || this.writing) return;
-    const request = { ...this.pending, action: "apply", confirmed: true };
+    if (!this.pending || this.writing || this.authenticating) return;
+    const { authTargets = [], ...pending } = this.pending;
+    const request = { ...pending, action: "apply", confirmed: true };
     this.pending = null; this.writing = true; this.error = null;
     const version = ++this.version;
     cx.spawn(async cx => {
@@ -69,8 +95,26 @@ export default class McpManager extends View {
         if (data.error) throw Object.assign(new Error(), data);
         if (r.code !== 0) throw { error_code: "apply_failed" };
         if (version === this.version) { this.data = data; this.message = "saved"; }
+        this.writing = false;
+        for (const target of authTargets) {
+          if (version !== this.version) break;
+          this.authenticating = target.name;
+          this.message = "signingIn";
+          cx.notify();
+          try {
+            const args = ["mcp", "login", target.name];
+            if (target.local) args.push("--local");
+            args.push("--timeout", "300");
+            const auth = await exec("pi", args, { cwd: request.cwd, timeout: 310000 });
+            if (auth.code !== 0) throw new Error("Pi OAuth login failed");
+            if (version === this.version) { this.message = "signedIn"; this.error = null; }
+          } catch {
+            if (version === this.version) { this.error = { error_code: "oauthFailed" }; this.message = null; }
+            break;
+          } finally { this.authenticating = null; }
+        }
       } catch (e) { if (version === this.version) { this.error = e; this.data = null; } }
-      finally { this.writing = false; if (version !== this.version) this.refresh(cx); cx.notify(); }
+      finally { this.writing = false; this.authenticating = null; if (version !== this.version) this.refresh(cx); cx.notify(); }
     });
   }
   render(cx) {
@@ -80,7 +124,7 @@ export default class McpManager extends View {
       this.key = key; this.ctx = ctx; this.data = null; this.pending = null; this.error = null; this.message = null; this.loading = false; ++this.version;
       this.refresh(cx);
     }
-    const busy = this.loading || this.writing;
+    const busy = this.loading || this.writing || Boolean(this.authenticating);
     const button = (id, text, action, disabled = false) => div().id(id).px(9).py(6).rounded(6).text_size(12)
       .bg(t.raised).text_color(disabled ? t.dim : t.foreground)
       .when(!disabled, el => el.hover(s => s.bg(t.hover)).on_click((_e, cx) => action(cx))).child(text);
@@ -117,15 +161,19 @@ export default class McpManager extends View {
           body.child(v_flex().p(10).gap(8).rounded(7).border(1).border_color(t.blocked)
             .child(div().font_semibold().child(tr(this.pending.enabled ? "enableCount" : "disableCount", { count: selected.length })))
             .child(note(selected.map(r => r.name).join(", ")))
+            .when(this.pending.authTargets?.length > 0, el => el.child(note(tr("oauthAfterEnable"))))
             .child(note(tr("warning")))
             .child(h_flex().gap(6).child(button("confirm", tr("confirm"), cx => this.apply(cx)))
               .child(button("cancel", tr("cancel"), cx => { this.pending = null; cx.notify(); }))));
         }
         for (const [i, row] of rows.entries()) {
+          const canSignIn = this.ctx.client === "pi" && row.oauth === true;
+          const authAfterEnable = canSignIn && !row.enabled ? [{ name: row.name, local: row.scope === "Proyecto" }] : [];
           body.child(v_flex().gap(5).p(10).rounded(7).bg(t.surface)
             .child(h_flex().items_center().gap(8)
               .child(div().flex_1().min_w(0).font_semibold().child(row.name))
-              .child(button(`toggle-${i}`, tr(this.ctx.client === "claude" ? "defined" : row.enabled ? "enabled" : "disabled"), cx => this.ask([row.name], !row.enabled, cx), !canEdit)))
+              .child(button(`toggle-${i}`, tr(this.ctx.client === "claude" ? "defined" : row.enabled ? "enabled" : "disabled"), cx => this.ask([row.name], !row.enabled, cx, authAfterEnable), !canEdit))
+              .when(canSignIn, el => el.child(button(`login-${i}`, tr("signIn"), cx => this.signIn(row, cx), busy || Boolean(this.pending)))))
             .child(note(tr(row.scope === "Usuario" ? "user" : "project") + " · " + row.file)));
         }
         if (this.details) for (const file of this.data.files) body.child(note(tr(file.exists ? "fileRead" : "fileMissing", { file: file.file })));
