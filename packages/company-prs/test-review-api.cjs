@@ -2,11 +2,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { cacheAvatar, endpoint, fetchReview, parsePatch, request, submitReview, validateReviewPayload } = require('./mods/company-pr-review/review-api.cjs');
+const { buildFileTree, cacheAvatar, endpoint, fetchReview, parsePatch, request, submitReview, validateReviewPayload } = require('./mods/company-pr-review/review-api.cjs');
 
 assert.equal(endpoint('nomoapp', 'nomo-server-app', 11003), '/repos/nomoapp/nomo-server-app/pulls/11003');
 assert.throws(() => endpoint('../org', 'repo', 1), /owner/i);
 assert.throws(() => endpoint('org', 'repo', 0), /number/i);
+
+const tree = buildFileTree([{ filename: 'src/app/main.js' }, { filename: 'src/app/util.js' }, { filename: 'src/index.js' }, { filename: 'README.md' }]);
+assert.deepEqual(tree.map(node => [node.kind, node.name]), [['directory', 'src'], ['file', 'README.md']]);
+assert.deepEqual(tree[0].children.map(node => node.name), ['app', 'index.js']);
+assert.deepEqual(tree[0].children[0].children.map(node => node.name), ['main.js', 'util.js']);
 
 const parsedDiff = parsePatch('diff --git a/src/a.js b/src/a.js\n@@ -10,3 +10,4 @@ function f\n context\n-old\n+new\n+tail');
 assert.deepEqual(parsedDiff.filter(row => row.kind !== 'hunk').map(row => [row.kind, row.line, row.side, row.hunk]), [
@@ -54,6 +59,8 @@ assert.equal(bundle.pull.number, 7);
 assert.equal(bundle.files[0].filename, 'src/a.js');
 assert.equal(bundle.files[0].diff[0].kind, 'hunk');
 assert.equal(bundle.files[0].diff[2].line, 1);
+assert.equal(bundle.tree[0].name, 'src');
+assert.equal(bundle.tree[0].children[0].name, 'a.js');
 assert.equal(bundle.comments[0].body, 'existing');
 assert.equal(bundle.reviews[0].state, 'APPROVED');
 assert.equal(pages.length, 4);

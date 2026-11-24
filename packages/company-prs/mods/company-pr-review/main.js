@@ -1,5 +1,5 @@
 import { View, div } from "gpui-kit";
-import { h_flex, v_flex, Textarea, TextareaState, Avatar, AvatarImage, AvatarFallback } from "gpui-base";
+import { h_flex, v_flex, Textarea, TextareaState, Avatar, AvatarImage, AvatarFallback, ScrollHandle } from "gpui-base";
 import { appHome, closeOverlay, checking, exec, props, shared, setShared, window } from "herdr";
 
 const API_SCRIPT = "/mods/company-pr-review/review-api.cjs";
@@ -61,6 +61,13 @@ export default class CompanyPRReview extends View {
     this.error = null;
     this.message = null;
     this.selectedFile = null;
+    this.expandedFiles = new Set();
+    this.diffScroll = ScrollHandle.new();
+    this.fileScrollFileOffset = 0;
+    this.collapsedDirs = new Set();
+    this.seenKey = `company-pr-review.seen.${this.owner}/${this.repo}#${this.number}`;
+    const storedSeen = shared(this.seenKey);
+    this.seenFiles = new Set(Array.isArray(storedSeen) ? storedSeen.filter(file => typeof file === "string") : []);
     this.authorLogin = "";
     this.avatarPath = null;
     this.rangeStart = null;
@@ -81,7 +88,9 @@ export default class CompanyPRReview extends View {
     cx.spawn(async cx => {
       try {
         this.data = await runHelper(["fetch", this.owner, this.repo, String(this.number)]);
-        this.selectedFile = this.data.files[0]?.filename || null;
+        const initialFile = this.data.files.find(file => !this.seenFiles.has(file.filename)) || this.data.files[0];
+        this.selectedFile = initialFile?.filename || null;
+        if (initialFile) this.expandedFiles.add(initialFile.filename);
         const author = this.data.pull && this.data.pull.user;
         this.authorLogin = (author && author.login) || "";
         if (this.authorLogin && author.avatar_url) {
@@ -100,6 +109,79 @@ export default class CompanyPRReview extends View {
         cx.notify();
       }
     });
+  }
+
+  toggleSeenFile(path, cx) {
+    const next = new Set(this.seenFiles);
+    const wasViewed = next.has(path);
+    if (wasViewed) {
+      next.delete(path);
+      this.expandedFiles.add(path);
+    } else {
+      next.add(path);
+      this.expandedFiles.delete(path);
+    }
+    this.seenFiles = next;
+    setShared(this.seenKey, [...next].sort());
+    cx.notify();
+  }
+
+  toggleFileExpanded(path, cx) {
+    this.expandedFiles.has(path) ? this.expandedFiles.delete(path) : this.expandedFiles.add(path);
+    this.selectedFile = path;
+    cx.notify();
+  }
+
+  selectDiffFile(path, cx) {
+    const index = (this.data.files || []).findIndex(file => file.filename === path);
+    this.selectedFile = path;
+    this.expandedFiles.clear();
+    this.expandedFiles.add(path);
+    if (index >= 0) this.diffScroll.scroll_to_item(this.fileScrollFileOffset + index);
+    cx.notify();
+  }
+
+  toggleDirectory(path, cx) {
+    this.collapsedDirs.has(path) ? this.collapsedDirs.delete(path) : this.collapsedDirs.add(path);
+    cx.notify();
+  }
+
+  fileTreeRows(nodes, depth, t, cx) {
+    const rows = [];
+    for (const node of nodes || []) {
+      if (node.kind === "directory") {
+        const collapsed = this.collapsedDirs.has(node.path);
+        rows.push(h_flex().id(`tree-dir-${node.path}`).h(24).pl(6 + depth * 12).gap(5).items_center()
+          .child(div().w(12).flex_none().text_color(t.muted).cursor_pointer()
+            .on_click((_event, cx) => this.toggleDirectory(node.path, cx)).child(collapsed ? "▸" : "▾"))
+          .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.foreground).cursor_pointer().tooltip(node.path)
+            .on_click((_event, cx) => this.toggleDirectory(node.path, cx)).child(node.name)));
+        if (!collapsed) rows.push(...this.fileTreeRows(node.children, depth + 1, t, cx));
+        continue;
+      }
+      const viewed = this.seenFiles.has(node.path);
+      const selected = this.selectedFile === node.path;
+      rows.push(h_flex().id(`tree-file-${node.path}`).h(25).pl(6 + depth * 12).pr(4).gap(5).items_center().rounded(3)
+        .bg(selected ? GITHUB.hunkBg : GITHUB.surface)
+        .child(div().id(`seen-${node.path}`).w(16).h(16).flex_none().rounded(3).border_1()
+          .border_color(viewed ? GITHUB.addMarker : GITHUB.border).bg(viewed ? GITHUB.addBg : GITHUB.canvas)
+          .text_center().text_size(10).font_semibold().text_color(viewed ? GITHUB.addMarker : GITHUB.muted).cursor_pointer()
+          .tooltip(viewed ? "Marcado como revisado; pulsa para quitar la marca" : "Marcar fichero como revisado")
+          .on_click((_event, cx) => this.toggleSeenFile(node.path, cx)).child(viewed ? "✓" : ""))
+        .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(selected ? GITHUB.blueText : GITHUB.foreground)
+          .cursor_pointer().tooltip(node.path).on_click((_event, cx) => this.selectDiffFile(node.path, cx)).child(node.name)));
+    }
+    return rows;
+  }
+
+  fileSidebar(files, t, cx) {
+    const viewedCount = files.filter(file => this.seenFiles.has(file.filename)).length;
+    const rows = this.fileTreeRows((this.data && this.data.tree) || [], 0, t, cx);
+    return v_flex().id("pr-file-sidebar").w(280).flex_none().h_full().min_h(0).border_1().border_color(t.border).rounded(6).bg(t.surface)
+      .child(v_flex().flex_none().p(8).gap(4).border_b(1).border_color(t.border)
+        .child(div().font_semibold().text_size(12).text_color(t.foreground).child(`Explorador · ${files.length} archivos`))
+        .child(div().text_size(10).text_color(t.muted).child(`${viewedCount}/${files.length} vistos`)))
+      .child(v_flex().id("pr-file-tree").flex_1().min_h(0).overflow_y_scrollbar().py(5).gap(1).children(rows));
   }
 
   selectLine(file, row, cx) {
@@ -246,16 +328,33 @@ export default class CompanyPRReview extends View {
   fileView(file, index, t, cx) {
     const rows = file.diff || [];
     const comments = (this.data.comments || []).filter(comment => comment.path === file.filename);
-    return v_flex().flex_none().border_b(1).border_color(t.border)
-      .child(h_flex().px(9).py(7).gap(8).items_center().bg(t.raised)
-        .child(div().flex_1().font_semibold().truncate().tooltip(file.filename).child(file.filename))
-        .child(div().text_color(t.dim).text_size(10).child(`+${file.additions || 0} −${file.deletions || 0}`)))
-      .when(Boolean(file.patch), el => el.children(rows.map((row, rowIndex) => this.diffRow(file, row, rowIndex, t, cx))))
-      .when(!file.patch, el => el.child(div().px(10).py(8).text_color(t.dim).child("GitHub no proporciona un diff de texto para este archivo.")))
-      .when(comments.length > 0, el => el.child(v_flex().px(10).py(5).gap(5).bg(t.popover)
+    const viewed = this.seenFiles.has(file.filename);
+    const expanded = this.expandedFiles.has(file.filename);
+    const body = [];
+    if (expanded) {
+      if (file.patch) body.push(...rows.map((row, rowIndex) => this.diffRow(file, row, rowIndex, t, cx)));
+      else body.push(div().px(10).py(8).text_color(t.dim).child("GitHub no proporciona un diff de texto para este archivo."));
+      if (comments.length) body.push(v_flex().px(10).py(5).gap(5).bg(t.popover)
         .children(comments.map(comment => div().id(`review-comment-${comment.id}`).p(7).rounded(4).bg(t.chrome)
           .child(div().text_size(10).text_color(t.accent).child(`${comment.user?.login || "reviewer"} · línea ${comment.line || "—"}`))
-          .child(div().text_size(11).text_color(t.foreground).child(comment.body || ""))))));
+          .child(div().text_size(11).text_color(t.foreground).child(comment.body || "")))));
+    }
+    return v_flex().id(`pr-file-card-${index}`).flex_none().border_1().border_color(t.border).rounded(5).bg(t.surface)
+      .child(h_flex().id(`pr-file-header-${index}`).h(38).px(9).gap(8).items_center().bg(t.raised)
+        .child(div().id(`collapse-file-${index}`).w(16).flex_none().text_center().text_color(t.muted).cursor_pointer()
+          .tooltip(expanded ? "Colapsar fichero" : "Expandir fichero")
+          .on_click((_event, cx) => this.toggleFileExpanded(file.filename, cx)).child(expanded ? "▾" : "▸"))
+        .child(div().flex_1().min_w(0).font_semibold().truncate().text_size(11).text_color(t.foreground)
+          .tooltip(file.filename).cursor_pointer().on_click((_event, cx) => this.toggleFileExpanded(file.filename, cx)).child(file.filename))
+        .child(div().text_color(t.dim).text_size(10).child(`+${file.additions || 0} −${file.deletions || 0}`))
+        .child(h_flex().id(`viewed-file-${index}`).h(26).px(7).gap(5).items_center().rounded(4).cursor_pointer()
+          .bg(viewed ? GITHUB.hunkBg : GITHUB.surface).text_color(viewed ? GITHUB.blue : GITHUB.muted).text_size(10)
+          .tooltip(viewed ? "Quitar marca de revisado y expandir" : "Marcar como revisado y colapsar")
+          .on_click((_event, cx) => this.toggleSeenFile(file.filename, cx))
+          .child(div().w(14).h(14).flex_none().rounded(3).border_1().border_color(viewed ? GITHUB.blue : GITHUB.border)
+            .bg(viewed ? GITHUB.blue : GITHUB.canvas).text_center().text_size(9).font_semibold().text_color(GITHUB.blueText).child(viewed ? "✓" : ""))
+          .child(div().child("Visto"))))
+      .when(expanded, el => el.children(body));
   }
 
   render(cx) {
@@ -284,10 +383,10 @@ export default class CompanyPRReview extends View {
       .child(this.button("acknowledge-review-outcome", "He verificado en GitHub; permitir reenvío", false, !this.submitting, cx => this.acknowledgeUncertain(cx))));
     if (data.warnings && data.warnings.length) root.push(div().px(8).text_color(t.muted).child(data.warnings.join(" · ")));
 
-    const content = [];
-    if (files.length && openPR) content.push(div().p(8).rounded(4).bg(GITHUB.surface).text_size(11).text_color(GITHUB.muted)
+    const intro = [];
+    if (files.length && openPR) intro.push(div().p(8).rounded(4).bg(GITHUB.surface).text_size(11).text_color(GITHUB.muted)
       .child("Para comentar: pulsa Comentar junto a una línea. Para un comentario multilínea, pulsa Inicio y luego Fin en otra línea del mismo bloque."));
-    if (this.loading && !this.data) content.push(div().p(12).text_color(t.muted).child("Cargando detalles y diff de GitHub…"));
+    if (this.loading && !this.data) intro.push(div().p(12).text_color(t.muted).child("Cargando detalles y diff de GitHub…"));
     if (p.body) {
       const descriptionPreview = String(p.body).split(/\r?\n/).find(line => line.trim()) || "";
       const descriptionChildren = [h_flex().items_center().gap(8).cursor_pointer()
@@ -296,17 +395,28 @@ export default class CompanyPRReview extends View {
         .child(div().text_size(10).text_color(t.blue).child(this.descriptionExpanded ? "Colapsar" : "Expandir"))];
       if (this.descriptionExpanded) descriptionChildren.push(div().text_color(t.foreground).child(p.body));
       else if (descriptionPreview) descriptionChildren.push(div().truncate().text_size(11).text_color(t.muted).child(descriptionPreview));
-      content.push(v_flex().p(9).gap(5).rounded(5).bg(t.surface).border_1().border_color(t.border).children(descriptionChildren));
+      intro.push(v_flex().p(9).gap(5).rounded(5).bg(t.surface).border_1().border_color(t.border).children(descriptionChildren));
     }
     const summaries = (data.reviews || []).filter(review => review.body);
-    if (summaries.length) content.push(v_flex().gap(5).children(summaries.map((review, index) =>
+    if (summaries.length) intro.push(v_flex().gap(5).children(summaries.map((review, index) =>
       div().id(`review-summary-${index}`).p(8).rounded(5).bg(t.chrome)
         .child(div().text_size(10).text_color(t.accent).child(`${(review.user && review.user.login) || "reviewer"} · ${review.state || "COMMENTED"}`))
         .child(div().text_color(t.foreground).child(review.body))
     )));
-    content.push(...files.map((file, index) => this.fileView(file, index, t, cx)));
-    if (!files.length && !this.loading && !this.error) content.push(div().p(12).text_color(t.dim).child("Esta PR no contiene archivos modificados."));
-    root.push(v_flex().id("pr-review-scroll").flex_1().min_h(0).overflow_y_scrollbar().gap(8).children(content));
+    const viewedCount = files.filter(file => this.seenFiles.has(file.filename)).length;
+    const fileCards = files.map((file, index) => this.fileView(file, index, t, cx));
+    if (!files.length && !this.loading && !this.error) fileCards.push(div().p(12).text_color(t.dim).child("Esta PR no contiene archivos modificados."));
+    const changesHeader = h_flex().flex_none().h(34).px(9).gap(8).items_center().rounded(4).bg(t.surface)
+      .child(div().flex_1().font_semibold().text_size(11).text_color(t.foreground).child(`Cambios · ${files.length} archivos`))
+      .child(div().text_size(10).text_color(t.muted).child(`${viewedCount}/${files.length} vistos`));
+    this.fileScrollFileOffset = intro.length + 1;
+    const scrollItems = [...intro, changesHeader, ...fileCards];
+    const center = v_flex().id("pr-review-center").flex_1().h_full().min_w(0).min_h(0)
+      .child(v_flex().id("pr-review-scroll").flex_1().min_h(0).overflow_y_scrollbar()
+        .track_scroll(this.diffScroll).gap(8).children(scrollItems));
+    root.push(h_flex().id("pr-review-workspace").flex_1().min_h(0).gap(8)
+      .child(this.fileSidebar(files, t, cx))
+      .child(center));
 
     if (selectedRangeText) root.push(v_flex().flex_none().p(8).gap(5).rounded(5).bg(t.raised)
       .child(div().text_size(10).text_color(t.accent).truncate().tooltip(selectedRangeText).child(selectedRangeText))

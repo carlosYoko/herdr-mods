@@ -37,7 +37,20 @@ for (const required of [
   'hunkBg: "#121d2f"',
   'Creada por @${this.authorLogin || "…"}',
   'AvatarImage.new(this.avatarPath)',
-  'AvatarFallback.new()'
+  'AvatarFallback.new()',
+  'company-pr-review.seen.',
+  'toggleSeenFile(path, cx)',
+  'toggleFileExpanded(path, cx)',
+  'this.fileSidebar(files, t, cx)',
+  'pr-file-sidebar").w(280).flex_none().h_full()',
+  'pr-review-center").flex_1().h_full()',
+  'this.data.tree',
+  'pr-file-card-${index}',
+  'this.diffScroll.scroll_to_item(this.fileScrollFileOffset + index)',
+  'this.fileScrollFileOffset = intro.length + 1',
+  '.track_scroll(this.diffScroll)',
+  'border_color(viewed ? GITHUB.addMarker : GITHUB.border)',
+  'pr-review-workspace'
 ]) assert.ok(reviewUI.includes(required), `expected review modal to include ${required}`);
 
 const layout = {

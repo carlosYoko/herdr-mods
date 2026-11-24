@@ -100,6 +100,31 @@ async function cacheAvatar(login, avatarUrl, appRoot, download = downloadImage) 
   return { path: path.relative(appRoot, target).split(path.sep).join('/') };
 }
 
+function buildFileTree(files) {
+  const root = { name: '', path: '', kind: 'directory', children: [] };
+  for (const file of files) {
+    const parts = file.filename.split('/').filter(Boolean);
+    let parent = root;
+    let currentPath = '';
+    parts.forEach((name, index) => {
+      currentPath = currentPath ? `${currentPath}/${name}` : name;
+      const kind = index === parts.length - 1 ? 'file' : 'directory';
+      let child = parent.children.find(item => item.name === name && item.kind === kind);
+      if (!child) {
+        child = { name, path: currentPath, kind, children: [], ...(kind === 'file' ? { file } : {}) };
+        parent.children.push(child);
+      }
+      parent = child;
+    });
+  }
+  function sort(node) {
+    node.children.sort((a, b) => a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1);
+    node.children.forEach(sort);
+  }
+  sort(root);
+  return root.children;
+}
+
 function validateIdentity(owner, repo, number) {
   if (typeof owner !== 'string' || !/^[A-Za-z0-9_.-]{1,100}$/.test(owner) || owner === '.' || owner === '..') {
     throw new Error('Invalid GitHub owner.');
@@ -208,7 +233,8 @@ function fetchReview(owner, repo, number, runRequest = request) {
   catch { warnings.push('No se pudieron cargar los resúmenes de revisión existentes.'); }
   if (files.truncated) warnings.push('Se muestran como máximo 1000 archivos.');
   if (comments.truncated || reviews.truncated) warnings.push('Se muestran como máximo 1000 comentarios/revisiones.');
-  return { pull, files: files.values.map(file => ({ ...file, diff: parsePatch(file.patch) })), comments: comments.values, reviews: reviews.values, warnings };
+  const parsedFiles = files.values.map(file => ({ ...file, diff: parsePatch(file.patch) }));
+  return { pull, files: parsedFiles, tree: buildFileTree(parsedFiles), comments: comments.values, reviews: reviews.values, warnings };
 }
 
 function submitReview(owner, repo, number, payload, runRequest = request) {
@@ -238,5 +264,5 @@ async function main(argv) {
   }
 }
 
-module.exports = { cacheAvatar, endpoint, fetchReview, parsePatch, request, submitReview, validateIdentity, validateReviewPayload };
+module.exports = { buildFileTree, cacheAvatar, endpoint, fetchReview, parsePatch, request, submitReview, validateIdentity, validateReviewPayload };
 if (require.main === module) main(process.argv.slice(2));
